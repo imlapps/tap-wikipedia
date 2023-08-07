@@ -1,2 +1,2 @@
 # tap-wikipedia
-Singer tap for extracting Wikipedia pages
+Singer tap for extracting Wikipedia pages.
