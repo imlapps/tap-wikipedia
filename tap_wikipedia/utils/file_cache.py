@@ -5,7 +5,6 @@ import mimetypes
 import os
 import gzip
 from pathlib import Path
-from shutil import copyfileobj
 from ssl import SSLContext
 from time import sleep
 from typing import Optional, Dict, Any
@@ -139,10 +138,9 @@ class FileCache:
             with gzip.GzipFile(fileobj=open_file_url) as uncompressed_file:
                 file_content = uncompressed_file.read()
 
-            with open(cached_file_path, 'wb') as cached_file:
+            with open(cached_file_path, "wb") as cached_file:
                 cached_file.write(file_content)
-                self.__logger.debug("downloaded %s to %s",
-                                    file_url, cached_file_path)
+                self.__logger.debug("downloaded %s to %s", file_url, cached_file_path)
 
         headers_json_file_path = file_cache_dir_path / "headers.json"
         with open(headers_json_file_path, "w+", encoding="utf-8") as headers_json_file:
@@ -161,21 +159,21 @@ class FileCache:
 
         return cached_file_path
 
-    # def put_file(
-    #     self,
-    #     *,
-    #     file_data: bytes,
-    #     file_url: str,
-    #     file_mime_type: Optional[str] = None,
-    #     file_extension: Optional[str] = None,
-    # ) -> Path:
-    #     file_cache_dir_path = self.__file_cache_dir_path(file_url=file_url)
-    #     if file_extension is None:
-    #         file_extension = self.__cached_file_extension(
-    #             file_mime_type=file_mime_type, file_url=file_url
-    #         )
-    #     cached_file_path = file_cache_dir_path / ("file" + file_extension)
-    #     file_cache_dir_path.mkdir(exist_ok=True)
-    #     with open(cached_file_path, "w+b") as cached_file:
-    #         cached_file.write(file_data)
-    #     return cached_file_path
+    def put_file(
+        self,
+        *,
+        file_data: bytes,
+        file_url: str,
+        file_mime_type: Optional[str] = None,
+        file_extension: Optional[str] = None,
+    ) -> Path:
+        file_cache_dir_path = self.__file_cache_dir_path(file_url=file_url)
+        if file_extension is None:
+            file_extension = self.__cached_file_extension(
+                file_mime_type=file_mime_type, file_url=file_url
+            )
+        cached_file_path = file_cache_dir_path / ("file" + file_extension)
+        file_cache_dir_path.mkdir(exist_ok=True)
+        with open(cached_file_path, "w+b") as cached_file:
+            cached_file.write(file_data)
+        return cached_file_path

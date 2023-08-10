@@ -1,27 +1,29 @@
-import dataclasses
 from dataclasses import dataclass
+from dataclasses_json import dataclass_json
 
 import xml.sax as sax
-from typing import Tuple
+from typing import List, Dict, Tuple
 
 
-@dataclass(frozen=True)
+@dataclass(init=False)
 class _EntityXML:
     """Dataclass to contain Wikipedia Abstracts"""
 
-    @dataclass(frozen=True)
+    @dataclass_json
+    @dataclass(init=False)
     class AbstractInfo:
         title: str
         abstract: str
         url: str
 
-    @dataclass(frozen=True)
-    class Sublinks:
+    @dataclass_json
+    @dataclass(init=False)
+    class Sublink:
         anchor: str
         link: str
 
     abstract_info: AbstractInfo
-    sublinks: Tuple[Sublinks]
+    sublinks: List[Sublink]
 
 
 class WikipediaAbstractsParser(sax.ContentHandler):
@@ -29,80 +31,67 @@ class WikipediaAbstractsParser(sax.ContentHandler):
 
     def __init__(self):
         self.CurrentData = ""
-        self.charBuffer = []
-        self.records = []
-        self.abstractInfoDictionary = {}
+        self.charBuffer: List[str] = []
+        self._records: List[Dict] = []
+        self.abstractData = _EntityXML()
 
     # reset character buffer and return all its contents as a string
     def __flush_char_buffer(self):
-        data = ''.join(self.charBuffer)
+        data = "".join(self.charBuffer)
         self.charBuffer = []
         return data.strip()
 
     # store individual records and reset abstracts dictionary
     def __store_record(self):
-        abstract_info = _EntityXML.AbstractInfo(
-            title=self.abstractInfoDictionary['title'],
-            abstract=self.abstractInfoDictionary['abstract'],
-            url=self.abstractInfoDictionary['url']
-        )
-        sublinks: list[_EntityXML.Sublinks] = []
+        wikipediaInfo = self.abstractData
+        record = {
+            "info": wikipediaInfo.abstract_info.to_dict(),
+            "sublinks": tuple(
+                _EntityXML.Sublink.schema().dump(wikipediaInfo.sublinks, many=True)
+            ),
+        }
 
-        for i in range(len(self.abstractInfoDictionary['link'])):
-            wikipediaAnchor = self.abstractInfoDictionary["anchor"][i]
-            wikipediaLink = self.abstractInfoDictionary['link'][i]
-            sublinks.append(_EntityXML.Sublinks(
-                anchor=wikipediaAnchor, link=wikipediaLink))
-
-        wikipediaInfo = _EntityXML(
-            abstract_info=abstract_info,
-            sublinks=tuple(sublinks))
-
-        record = {"info": dataclasses.asdict(wikipediaInfo.abstract_info),
-                  "sublinks": tuple([dataclasses.asdict(x) for x in wikipediaInfo.sublinks])}
-
-        self.records.append(record)
-        self.abstractInfoDictionary = {}
+        self._records.append(record)
+        self.abstractData = _EntityXML()
 
     # Call when an element starts
     def startElement(self, tag, attributes):
         self.CurrentData = tag
+        if tag == "doc":
+            self.abstractData.abstract_info = _EntityXML.AbstractInfo()
+            self.abstractData.sublinks = []
 
     # Call when an elements ends
     def endElement(self, tag):
         if tag == "title":
-            self.abstractInfoDictionary["title"] = self.__flush_char_buffer()
-        if tag == "url":
-            self.abstractInfoDictionary["url"] = self.__flush_char_buffer()
-        if tag == "abstract":
-            self.abstractInfoDictionary["abstract"] = self.__flush_char_buffer(
-            )
-        if tag == "anchor":
-            if tag not in self.abstractInfoDictionary:
-                self.abstractInfoDictionary["anchor"] = []
-            self.abstractInfoDictionary["anchor"].append(
-                self.__flush_char_buffer())
-        if tag == "link":
-            if tag not in self.abstractInfoDictionary:
-                self.abstractInfoDictionary["link"] = []
-            self.abstractInfoDictionary["link"].append(
-                self.__flush_char_buffer())
-        if tag == "doc":
+            self.abstractData.abstract_info.title = self.__flush_char_buffer()
+        elif tag == "url":
+            self.abstractData.abstract_info.url = self.__flush_char_buffer()
+        elif tag == "abstract":
+            self.abstractData.abstract_info.abstract = self.__flush_char_buffer()
+        elif tag == "anchor":
+            sublink = _EntityXML.Sublink()
+            sublink.anchor = self.__flush_char_buffer()
+            self.abstractData.sublinks.append(sublink)
+        elif tag == "link":
+            self.abstractData.sublinks[-1].link = self.__flush_char_buffer()
+        elif tag == "doc":
             self.__store_record()
 
     # store each chunk of character data within character buffer
     def characters(self, content):
         if self.CurrentData == "title":
             self.charBuffer.append(content)
-        if self.CurrentData == "url":
+        elif self.CurrentData == "url":
             self.charBuffer.append(content)
-        if self.CurrentData == "abstract":
+        elif self.CurrentData == "abstract":
             self.charBuffer.append(content)
-        if self.CurrentData == "anchor":
+        elif self.CurrentData == "anchor":
             self.charBuffer.append(content)
-        if self.CurrentData == "link":
+        elif self.CurrentData == "link":
             self.charBuffer.append(content)
 
-    # return list of records
-    def getRecords(self):
-        return self.records
+    # return a Tuple of records
+    @property
+    def records(self) -> Tuple[Dict, ...]:
+        return tuple(self._records)
