@@ -51,7 +51,9 @@ class FileCache:
         guessed_mime_type, _ = mimetypes.guess_type(file_url, strict=False)
         if guessed_mime_type is not None:
             self.__logger.debug(
-                "guessed MIME type %s from file URL %s", guessed_mime_type, file_url
+                "guessed MIME type %s from file URL %s",
+                guessed_mime_type,
+                file_url,  # noqa: E501
             )
             cached_file_extension = mimetypes.guess_extension(
                 guessed_mime_type, strict=False
@@ -81,8 +83,9 @@ class FileCache:
         :return path to the file in the cache directory
         """
 
-        # Store each file in a different directory, alongside its metadata
-        # The file will be <root dir path>/<sanitized version of file URL>/file.<extension>
+        # Store each file in a different directory,
+        # alongside its metadata. The file will be:
+        # <root dir path>/<sanitized version of file URL>/file.<extension>
         # The headers will be in the same directory as headers.txt.
 
         assert not str(file_url).startswith("file:")
@@ -98,7 +101,7 @@ class FileCache:
                 if file_base_name == "abstracts":
                     # Cache hit
                     self.__logger.debug(
-                        "cached file %s exists for URL %s and force_download not specified, using cached data",
+                        "cached file %s exists for URL %s and force_download not specified, using cached data",  # noqa: E501
                         cached_file_path,
                         file_url,
                     )
@@ -127,7 +130,9 @@ class FileCache:
 
         # Force download or cache miss
         self.__logger.debug("downloading %s", file_url)
-        with urlopen(str(file_url), context=self.__ssl_context) as open_file_url:
+        with urlopen(
+            str(file_url), context=self.__ssl_context
+        ) as open_file_url:  # noqa: E501
             open_file_headers_dict = {
                 key: value for key, value in open_file_url.headers.items()
             }
@@ -140,10 +145,14 @@ class FileCache:
 
             with open(cached_file_path, "wb") as cached_file:
                 cached_file.write(file_content)
-                self.__logger.debug("downloaded %s to %s", file_url, cached_file_path)
+                self.__logger.debug(
+                    "downloaded %s to %s", file_url, cached_file_path
+                )  # noqa: E501
 
         headers_json_file_path = file_cache_dir_path / "headers.json"
-        with open(headers_json_file_path, "w+", encoding="utf-8") as headers_json_file:
+        with open(
+            headers_json_file_path, "w+", encoding="utf-8"
+        ) as headers_json_file:  # noqa: E501
             json.dump(open_file_headers_dict, headers_json_file)
             self.__logger.debug(
                 "wrote %s headers to %s", file_url, headers_json_file_path

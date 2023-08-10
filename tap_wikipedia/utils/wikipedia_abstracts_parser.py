@@ -30,7 +30,7 @@ class WikipediaAbstractsParser(sax.ContentHandler):
     """SAX Handler for Wikipedia Abstracts"""
 
     def __init__(self):
-        self.CurrentData = ""
+        self.currentData = ""
         self.charBuffer: List[str] = []
         self._records: List[Dict] = []
         self.abstractData = _EntityXML()
@@ -47,7 +47,9 @@ class WikipediaAbstractsParser(sax.ContentHandler):
         record = {
             "info": wikipediaInfo.abstract_info.to_dict(),
             "sublinks": tuple(
-                _EntityXML.Sublink.schema().dump(wikipediaInfo.sublinks, many=True)
+                _EntityXML.Sublink.schema().dump(
+                    wikipediaInfo.sublinks, many=True
+                )  # noqa: E501
             ),
         }
 
@@ -56,7 +58,7 @@ class WikipediaAbstractsParser(sax.ContentHandler):
 
     # Call when an element starts
     def startElement(self, tag, attributes):
-        self.CurrentData = tag
+        self.currentData = tag
         if tag == "doc":
             self.abstractData.abstract_info = _EntityXML.AbstractInfo()
             self.abstractData.sublinks = []
@@ -68,7 +70,9 @@ class WikipediaAbstractsParser(sax.ContentHandler):
         elif tag == "url":
             self.abstractData.abstract_info.url = self.__flush_char_buffer()
         elif tag == "abstract":
-            self.abstractData.abstract_info.abstract = self.__flush_char_buffer()
+            self.abstractData.abstract_info.abstract = (
+                self.__flush_char_buffer()
+            )  # noqa: E501
         elif tag == "anchor":
             sublink = _EntityXML.Sublink()
             sublink.anchor = self.__flush_char_buffer()
@@ -80,15 +84,15 @@ class WikipediaAbstractsParser(sax.ContentHandler):
 
     # store each chunk of character data within character buffer
     def characters(self, content):
-        if self.CurrentData == "title":
+        if self.currentData == "title":
             self.charBuffer.append(content)
-        elif self.CurrentData == "url":
+        elif self.currentData == "url":
             self.charBuffer.append(content)
-        elif self.CurrentData == "abstract":
+        elif self.currentData == "abstract":
             self.charBuffer.append(content)
-        elif self.CurrentData == "anchor":
+        elif self.currentData == "anchor":
             self.charBuffer.append(content)
-        elif self.CurrentData == "link":
+        elif self.currentData == "link":
             self.charBuffer.append(content)
 
     # return a Tuple of records

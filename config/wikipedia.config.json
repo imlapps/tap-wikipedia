@@ -2,7 +2,7 @@
     "settings": {
         "abstracts-dump-url": "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz",
         "cache-path": "",
-        "subset-specification": [
+        "subset-spec": [
             "featured"
         ]
     }

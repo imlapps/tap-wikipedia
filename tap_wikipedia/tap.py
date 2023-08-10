@@ -22,7 +22,7 @@ class Tapwikipedia(Tap):
             th.ObjectType(
                 th.Property("abstracts-dump-url", th.StringType),
                 th.Property("cache-path", th.StringType),
-                th.Property("subset-specification", th.ArrayType(th.StringType)),
+                th.Property("subset-spec", th.ArrayType(th.StringType)),
             ),
         ),
     ).to_dict()
@@ -42,7 +42,11 @@ class Tapwikipedia(Tap):
         Returns:
             A list of discovered streams.
         """
-        return [WikipediaAbstractsStream(tap=self, wikipedia_config=self.get_config())]
+        return [
+            WikipediaAbstractsStream(
+                tap=self, wikipedia_config=self.get_config()  # noqa: E501
+            )
+        ]
 
 
 if __name__ == "__main__":

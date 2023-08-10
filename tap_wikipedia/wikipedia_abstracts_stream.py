@@ -17,7 +17,9 @@ from singer_sdk import Tap
 from tap_wikipedia.wikipedia_stream import WikipediaStream
 
 from tap_wikipedia.utils.file_cache import FileCache
-from tap_wikipedia.utils.wikipedia_abstracts_parser import WikipediaAbstractsParser
+from tap_wikipedia.utils.wikipedia_abstracts_parser import (
+    WikipediaAbstractsParser,
+)  # noqa: E501
 
 
 class WikipediaAbstractsStream(WikipediaStream):
@@ -67,7 +69,9 @@ class WikipediaAbstractsStream(WikipediaStream):
                 links.append(current_link)
 
         links.sort()
-        featured_urls = tuple("https://en.wikipedia.org" + link for link in links)
+        featured_urls = tuple(
+            "https://en.wikipedia.org" + link for link in links  # noqa: E501
+        )
 
         return featured_urls
 
@@ -90,22 +94,24 @@ class WikipediaAbstractsStream(WikipediaStream):
         """Generate Stream of Wikipedia Records"""
 
         # Set default config values
-        default_url = (
-            "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz"
-        )
+        default_url = "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz"  # noqa: E501
         default_cache_dir = user_cache_dir("abstracts", "tap-wikipedia")
 
         # Get config values
         url = self.wikipedia_config.get("abstracts-dump-url", default_url)
-        cache_dir = Path(self.wikipedia_config.get("cache-path", default_cache_dir))
-        subset_specification = self.wikipedia_config.get("subset-specification", [])
+        cache_dir = Path(
+            self.wikipedia_config.get("cache-path", default_cache_dir)  # noqa: E501
+        )
+        subset_specification = self.wikipedia_config.get("subset-spec", [])
 
         # Get cache directory
         abstractsCache = FileCache(cache_dir_path=cache_dir)
         try:
             cached_file_path = abstractsCache.get_file(url)
         except Exception:
-            self.__logger.warning("error downloading Wikipedia dump", exc_info=True)
+            self.__logger.warning(
+                "error downloading Wikipedia dump", exc_info=True
+            )  # noqa: E501
             return 1
 
         # get Wikipedia records
@@ -121,7 +127,6 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         # Filter out featured Wikipedia Article records
         if "featured" in subset_specification:
-            get_featured_records()
+            yield from get_featured_records()
         else:
-            for record in records:
-                yield record
+            yield from records
