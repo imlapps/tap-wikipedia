@@ -138,9 +138,14 @@ dmypy.json
 .vscode
 .secrets
 .pre-commit-config.yaml
+
 tox.ini 
 dist
 plugins
 tap_wikipedia/__pycache__
 tap_wikipedia/utils/__pycache__
 tap_wikipedia/dumps
+httpsdumps.wikimedia.orgenwikilatestenwiki-latest-abstract1.xml.gz/abstracts.bin
+httpsdumps.wikimedia.orgenwikilatestenwiki-latest-abstract1.xml.gz/headers.json
+output/wikipedia.output.jsonl
+featured_articles_cache.sqlite

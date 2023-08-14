@@ -1,29 +1,23 @@
-from dataclasses import dataclass
-from dataclasses_json import dataclass_json
+from pydantic import BaseModel
 
 import xml.sax as sax
 from typing import List, Dict, Tuple
 
 
-@dataclass(init=False)
-class _EntityXML:
-    """Dataclass to contain Wikipedia Abstracts"""
+class _EntityXML(BaseModel):
+    """A Pydantic Model to contain Wikipedia Abstracts"""
 
-    @dataclass_json
-    @dataclass(init=False)
-    class AbstractInfo:
-        title: str
-        abstract: str
-        url: str
+    class AbstractInfo(BaseModel):
+        title: str = ""
+        abstract: str = ""
+        url: str = ""
 
-    @dataclass_json
-    @dataclass(init=False)
-    class Sublink:
-        anchor: str
-        link: str
+    class Sublink(BaseModel):
+        anchor: str = ""
+        link: str = ""
 
-    abstract_info: AbstractInfo
-    sublinks: List[Sublink]
+    abstract_info: AbstractInfo = AbstractInfo()
+    sublinks: List[Sublink] = []
 
 
 class WikipediaAbstractsParser(sax.ContentHandler):
@@ -43,15 +37,7 @@ class WikipediaAbstractsParser(sax.ContentHandler):
 
     # store individual records and reset abstracts dictionary
     def __store_record(self):
-        wikipediaInfo = self.abstractData
-        record = {
-            "info": wikipediaInfo.abstract_info.to_dict(),
-            "sublinks": tuple(
-                _EntityXML.Sublink.schema().dump(
-                    wikipediaInfo.sublinks, many=True
-                )  # noqa: E501
-            ),
-        }
+        record = self.abstractData.model_dump()
 
         self._records.append(record)
         self.abstractData = _EntityXML()

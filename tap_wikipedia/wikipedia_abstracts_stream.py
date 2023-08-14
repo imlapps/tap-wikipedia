@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-
+import os
 from requests_cache import CachedSession
 
 import xml.sax as sax
@@ -31,7 +31,7 @@ class WikipediaAbstractsStream(WikipediaStream):
             name="abstracts",
             schema=th.PropertiesList(
                 th.Property(
-                    "info",
+                    "abstract_info",
                     th.ObjectType(
                         th.Property("title", th.StringType),
                         th.Property("abstract", th.StringType),
@@ -122,7 +122,7 @@ class WikipediaAbstractsStream(WikipediaStream):
             featured_urls = self.__get_featured_articles()
 
             for record in records:
-                if record["info"]["url"] in featured_urls:
+                if record["abstract_info"]["url"] in featured_urls:
                     yield record
 
         # Filter out featured Wikipedia Article records
