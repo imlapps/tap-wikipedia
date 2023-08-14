@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from requests_cache import CachedSession
 
 import xml.sax as sax
@@ -83,12 +82,12 @@ class WikipediaAbstractsStream(WikipediaStream):
         parser.setFeature(sax.handler.feature_namespaces, 0)
 
         # Instantiate SAX Handler and run parser
-        Handler = WikipediaAbstractsParser()
-        parser.setContentHandler(Handler)
+        handler = WikipediaAbstractsParser()
+        parser.setContentHandler(handler)
         parser.parse(cached_file_path)
 
         # Return tuple of records
-        return Handler.records
+        return handler.records
 
     def get_records(self, context: Dict | None) -> Iterable[Dict]:
         """Generate Stream of Wikipedia Records"""

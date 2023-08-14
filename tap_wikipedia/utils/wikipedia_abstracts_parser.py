@@ -30,13 +30,13 @@ class WikipediaAbstractsParser(sax.ContentHandler):
         self.abstractData = _EntityXML()
 
     # reset character buffer and return all its contents as a string
-    def __flush_char_buffer(self):
+    def flushCharBuffer(self):
         data = "".join(self.charBuffer)
         self.charBuffer = []
         return data.strip()
 
     # store individual records and reset abstracts dictionary
-    def __store_record(self):
+    def storeRecord(self):
         record = self.abstractData.model_dump()
 
         self._records.append(record)
@@ -52,21 +52,21 @@ class WikipediaAbstractsParser(sax.ContentHandler):
     # Call when an elements ends
     def endElement(self, tag):
         if tag == "title":
-            self.abstractData.abstract_info.title = self.__flush_char_buffer()
+            self.abstractData.abstract_info.title = self.flushCharBuffer()
         elif tag == "url":
-            self.abstractData.abstract_info.url = self.__flush_char_buffer()
+            self.abstractData.abstract_info.url = self.flushCharBuffer()
         elif tag == "abstract":
             self.abstractData.abstract_info.abstract = (
-                self.__flush_char_buffer()
+                self.flushCharBuffer()
             )  # noqa: E501
         elif tag == "anchor":
             sublink = _EntityXML.Sublink()
-            sublink.anchor = self.__flush_char_buffer()
+            sublink.anchor = self.flushCharBuffer()
             self.abstractData.sublinks.append(sublink)
         elif tag == "link":
-            self.abstractData.sublinks[-1].link = self.__flush_char_buffer()
+            self.abstractData.sublinks[-1].link = self.flushCharBuffer()
         elif tag == "doc":
-            self.__store_record()
+            self.storeRecord()
 
     # store each chunk of character data within character buffer
     def characters(self, content):
