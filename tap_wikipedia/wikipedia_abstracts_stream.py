@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from requests_cache import CachedSession
 
+import requests
 import xml.sax as sax
 from bs4 import BeautifulSoup
 
@@ -35,6 +36,7 @@ class WikipediaAbstractsStream(WikipediaStream):
                         th.Property("title", th.StringType),
                         th.Property("abstract", th.StringType),
                         th.Property("url", th.StringType),
+                        th.Property("image", th.StringType),
                     ),
                 ),
                 th.Property(
@@ -50,6 +52,22 @@ class WikipediaAbstractsStream(WikipediaStream):
         )
         self.wikipedia_config = wikipedia_config
         self.__logger = logging.getLogger(__name__)
+
+    def __get_wikipedia_record_images(self, url: str) -> str:
+        """Retrieve URL of a single wikipedia record"""
+
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        img_url = ""
+
+        img_url = (
+            soup.find("a", {"class": "mw-file-description"}).findChild().get("src")  # type: ignore # noqa: E501
+        )
+        if img_url is None:
+            img_url = ""
+
+        return img_url
 
     def __get_featured_articles(self) -> Tuple[str, ...]:
         """Retrieve URLs of Featured Wikipedia Articles"""
@@ -74,7 +92,7 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         return featured_urls
 
-    def __get_wikipedia_records(self, cached_file_path) -> Tuple[Dict, ...]:
+    def __get_wikipedia_records(self, cached_file_path) -> Iterable[Dict]:
         """Retrieve list of Wikipedia Records"""
 
         # Setup parser
@@ -116,16 +134,37 @@ class WikipediaAbstractsStream(WikipediaStream):
         # get Wikipedia records
         records = self.__get_wikipedia_records(cached_file_path)
 
-        # returns a list of featured Wikipedia Article records
-        def get_featured_records() -> Iterable[Dict]:
+        # generates a stream of featured Wikipedia article records
+        def get_featured_records(records) -> Iterable[Dict]:
             featured_urls = self.__get_featured_articles()
 
             for record in records:
                 if record["abstract_info"]["url"] in featured_urls:
                     yield record
 
-        # Filter out featured Wikipedia Article records
+        # adds the main image of the Wikipedia article to the Wikipedia record
+        def add_images_to_records(records) -> Iterable[Dict]:
+            for record in records:
+                try:
+                    img_url = self.__get_wikipedia_record_images(
+                        record["abstract_info"]["url"]
+                    )
+                except Exception:
+                    self.__logger.warning(
+                        f'error getting URL of {record["abstract_info"]["title"]}',  # noqa: E501
+                        exc_info=True,
+                    )
+                    continue
+
+                record["abstract_info"]["image"] = img_url
+                yield record
+
+        # extract featured Wikipedia Article records
         if "featured" in subset_specification:
-            yield from get_featured_records()
-        else:
-            yield from records
+            records = get_featured_records(records)
+
+        # add images to Wikipedia Article records
+        if "images" in subset_specification:
+            records = add_images_to_records(records)
+
+        yield from records
