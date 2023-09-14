@@ -8,6 +8,8 @@
         "enhancements": [
             "images"
         ],
-        "clean-entries": []
+        "clean-entries": [
+            "title"
+        ]
     }
 }

@@ -121,7 +121,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         )
         subset_specification = self.wikipedia_config.get("subset-spec", [])
         enhancements = self.wikipedia_config.get("enhancements", [])
-        # clean_entries = self.wikipedia_config.get("clean_entries", [])
+        clean_entries = self.wikipedia_config.get("clean_entries", [])
 
         # Get cache directory
         abstractsCache = FileCache(cache_dir_path=cache_dir)
@@ -161,12 +161,32 @@ class WikipediaAbstractsStream(WikipediaStream):
                 record["abstract_info"]["image"] = img_url
                 yield record
 
-        # extract featured Wikipedia Article records
-        if "featured" in subset_specification:
-            records = get_featured_records(records)
+        # removes unwanted information from titles in the Wikipedia records
+        def clean_wikipedia_titles(records) -> Iterable[Dict]:
+            for record in records:
+                # removes "Wikipedia" from the Wikipedia Title
+                if record["abstract_info"]["title"][:10] == "Wikipedia:":
+                    record["abstract_info"]["title"] = record["abstract_info"][
+                        "title"
+                    ][  # noqa: E501
+                        10:
+                    ].strip()
 
-        # add images to Wikipedia Article records
-        if "images" in enhancements:
-            records = add_images_to_records(records)
+                yield record
+
+        for specification in subset_specification:
+            # extract featured Wikipedia Article records
+            if specification == "featured":
+                records = get_featured_records(records)
+
+        for enhancement in enhancements:
+            # add images to Wikipedia Article records
+            if enhancement == "images":
+                records = add_images_to_records(records)
+
+        for entry in clean_entries:
+            # remove irrelevant information from Wikipedia Title
+            if entry == "title":
+                records = clean_wikipedia_titles(records)
 
         yield from records
