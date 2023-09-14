@@ -3,8 +3,11 @@
         "abstracts-dump-url": "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz",
         "cache-path": "",
         "subset-spec": [
-            "featured",
+            "featured"
+        ],
+        "enhancements": [
             "images"
-        ]
+        ],
+        "clean-entries": []
     }
 }

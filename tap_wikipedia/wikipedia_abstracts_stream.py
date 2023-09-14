@@ -120,6 +120,8 @@ class WikipediaAbstractsStream(WikipediaStream):
             self.wikipedia_config.get("cache-path", default_cache_dir)  # noqa: E501
         )
         subset_specification = self.wikipedia_config.get("subset-spec", [])
+        enhancements = self.wikipedia_config.get("enhancements", [])
+        # clean_entries = self.wikipedia_config.get("clean_entries", [])
 
         # Get cache directory
         abstractsCache = FileCache(cache_dir_path=cache_dir)
@@ -164,7 +166,7 @@ class WikipediaAbstractsStream(WikipediaStream):
             records = get_featured_records(records)
 
         # add images to Wikipedia Article records
-        if "images" in subset_specification:
+        if "images" in enhancements:
             records = add_images_to_records(records)
 
         yield from records
