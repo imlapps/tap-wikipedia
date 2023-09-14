@@ -6,7 +6,8 @@
             "featured"
         ],
         "enhancements": [
-            "images"
+            "images",
+            "categories"
         ],
         "clean-entries": [
             "title"

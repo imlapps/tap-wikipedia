@@ -48,6 +48,15 @@ class WikipediaAbstractsStream(WikipediaStream):
                         )
                     ),
                 ),
+                th.Property(
+                    "categories",
+                    th.ArrayType(
+                        th.ObjectType(
+                            th.Property("text", th.StringType),
+                            th.Property("link", th.StringType),
+                        )
+                    ),
+                ),
             ).to_dict(),
         )
         self.wikipedia_config = wikipedia_config
@@ -68,6 +77,23 @@ class WikipediaAbstractsStream(WikipediaStream):
             img_url = ""
 
         return img_url
+
+    def __get_wikipedia_record_categories(self, url: str) -> Tuple[Dict, ...]:
+        """Retrieve URL of a single wikipedia record"""
+
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        categories = []
+
+        unordered_category_list = soup.find("a", {"title": "Help:Category"}).find_next_sibling().findAll("a")  # type: ignore # noqa: E501
+
+        for list_item in unordered_category_list:
+            category_link = list_item.get("href")
+            category_text = list_item.text.strip()
+            categories.append({"text": category_text, "link": category_link})
+
+        return tuple(categories)
 
     def __get_featured_articles(self) -> Tuple[str, ...]:
         """Retrieve URLs of Featured Wikipedia Articles"""
@@ -121,7 +147,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         )
         subset_specification = self.wikipedia_config.get("subset-spec", [])
         enhancements = self.wikipedia_config.get("enhancements", [])
-        clean_entries = self.wikipedia_config.get("clean_entries", [])
+        clean_entries = self.wikipedia_config.get("clean-entries", [])
 
         # Get cache directory
         abstractsCache = FileCache(cache_dir_path=cache_dir)
@@ -161,6 +187,23 @@ class WikipediaAbstractsStream(WikipediaStream):
                 record["abstract_info"]["image"] = img_url
                 yield record
 
+        # adds a list of categories to the Wikipedia record
+        def add_categories_to_records(records) -> Iterable[Dict]:
+            for record in records:
+                try:
+                    categories = self.__get_wikipedia_record_categories(
+                        record["abstract_info"]["url"]
+                    )
+                except Exception:
+                    self.__logger.warning(
+                        f'error getting category of {record["abstract_info"]["title"]}',  # noqa: E501
+                        exc_info=True,
+                    )
+                    continue
+
+                record["categories"] = categories
+                yield record
+
         # removes unwanted information from titles in the Wikipedia records
         def clean_wikipedia_titles(records) -> Iterable[Dict]:
             for record in records:
@@ -183,6 +226,10 @@ class WikipediaAbstractsStream(WikipediaStream):
             # add images to Wikipedia Article records
             if enhancement == "images":
                 records = add_images_to_records(records)
+
+            # add categories to Wikipedia Article records
+            if enhancement == "categories":
+                records = add_categories_to_records(records)
 
         for entry in clean_entries:
             # remove irrelevant information from Wikipedia Title
