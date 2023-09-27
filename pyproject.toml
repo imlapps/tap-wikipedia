@@ -16,7 +16,7 @@ singer-sdk = "^0.31.1"
 pathvalidate = "^3.1.0"
 appdirs = "^1.4.4"
 beautifulsoup4 = "^4.12.2"
-pydantic = "^2.3.0"
+pydantic = "^2.4.1"
 requests-cache = "^1.1.0"
 
 [tool.poetry.group.dev.dependencies]
