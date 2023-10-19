@@ -57,6 +57,15 @@ class WikipediaAbstractsStream(WikipediaStream):
                         )
                     ),
                 ),
+                th.Property(
+                    "externallinks",
+                    th.ArrayType(
+                        th.ObjectType(
+                            th.Property("title", th.StringType),
+                            th.Property("link", th.StringType),
+                        )
+                    ),
+                ),
             ).to_dict(),
         )
         self.wikipedia_config = wikipedia_config
@@ -95,8 +104,36 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         return tuple(categories)
 
+    def __get_wikipedia_record_external_links(self, title: str) -> Tuple[Dict, ...]:
+        """Retrieve the external Wikipedia links present on a Wikipedia article"""
+
+        # Clean Wikipedia title
+        if title[:10] == "Wikipedia:":
+            title = title[10:].strip()
+
+        media_wiki_url = "https://en.wikipedia.org/w/api.php"
+        media_wiki_params = {"action": "parse", "page": title, "format": "json"}
+
+        response = requests.get(url=media_wiki_url, params=media_wiki_params)
+
+        external_links_titles = filter(
+            lambda wikipedia_json: wikipedia_json["ns"] == 0,
+            response.json()["parse"]["links"],
+        )
+
+        external_links = tuple(
+            {
+                "title": wikipedia_json["*"].title(),
+                "link": "https://en.wikipedia.org/wiki/"
+                + wikipedia_json["*"].replace(" ", "_"),
+            }
+            for wikipedia_json in external_links_titles
+        )
+
+        return external_links
+
     def __get_featured_articles(self) -> Tuple[str, ...]:
-        """Retrieve URLs of Featured Wikipedia Articles"""
+        """Retrieve URLs of Featured Wikipedia articles"""
 
         session = CachedSession("featured_articles_cache", expire_after=3600)
 
@@ -151,6 +188,7 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         # Get cache directory
         abstractsCache = FileCache(cache_dir_path=cache_dir)
+
         try:
             cached_file_path = abstractsCache.get_file(url)
         except Exception:
@@ -204,6 +242,23 @@ class WikipediaAbstractsStream(WikipediaStream):
                 record["categories"] = categories
                 yield record
 
+        # adds a list of external links to the Wikipedia record
+        def add_external_links_to_records(records):
+            for record in records:
+                try:
+                    external_links = self.__get_wikipedia_record_external_links(
+                        record["abstract_info"]["title"]
+                    )
+                except Exception:
+                    self.__logger.warning(
+                        f'error getting external links of {record["abstract_info"]["title"]}',  # noqa: E501
+                        exc_info=True,
+                    )
+                    continue
+
+                record["externallinks"] = external_links
+                yield record
+
         # removes unwanted information from titles in the Wikipedia records
         def clean_wikipedia_titles(records) -> Iterable[Dict]:
             for record in records:
@@ -230,6 +285,10 @@ class WikipediaAbstractsStream(WikipediaStream):
             # add categories to Wikipedia Article records
             if enhancement == "categories":
                 records = add_categories_to_records(records)
+
+            # add external links to Wikipedia Article records
+            if enhancement == "externallinks":
+                records = add_external_links_to_records(records)
 
         for entry in clean_entries:
             # remove irrelevant information from Wikipedia Title
