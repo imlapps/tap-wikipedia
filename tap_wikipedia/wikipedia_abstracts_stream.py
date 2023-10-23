@@ -104,15 +104,21 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         return tuple(categories)
 
-    def __get_wikipedia_record_external_links(self, title: str) -> Tuple[Dict, ...]:
-        """Retrieve the external Wikipedia links present on a Wikipedia article"""
+    def __get_wikipedia_record_external_links(
+        self, title: str
+    ) -> Tuple[Dict, ...]:  # noqa: E501
+        """Retrieve external Wikipedia links from a Wikipedia article"""
 
         # Clean Wikipedia title
         if title[:10] == "Wikipedia:":
             title = title[10:].strip()
 
         media_wiki_url = "https://en.wikipedia.org/w/api.php"
-        media_wiki_params = {"action": "parse", "page": title, "format": "json"}
+        media_wiki_params = {
+            "action": "parse",
+            "page": title,
+            "format": "json",
+        }  # noqa: E501
 
         response = requests.get(url=media_wiki_url, params=media_wiki_params)
 
@@ -246,8 +252,10 @@ class WikipediaAbstractsStream(WikipediaStream):
         def add_external_links_to_records(records):
             for record in records:
                 try:
-                    external_links = self.__get_wikipedia_record_external_links(
-                        record["abstract_info"]["title"]
+                    external_links = (
+                        self.__get_wikipedia_record_external_links(  # noqa: E501
+                            record["abstract_info"]["title"]
+                        )
                     )
                 except Exception:
                     self.__logger.warning(
@@ -259,7 +267,7 @@ class WikipediaAbstractsStream(WikipediaStream):
                 record["externallinks"] = external_links
                 yield record
 
-        # removes unwanted information from titles in the Wikipedia records
+        # removes unwanted information from the title of  Wikipedia records
         def clean_wikipedia_titles(records) -> Iterable[Dict]:
             for record in records:
                 # removes "Wikipedia" from the Wikipedia Title
@@ -270,6 +278,11 @@ class WikipediaAbstractsStream(WikipediaStream):
                         10:
                     ].strip()
 
+                yield record
+
+        # removes unwanted information from the abstract of a Wikipedia record
+        def clean_wikipedia_abstracts(records) -> Iterable[Dict]:
+            for record in records:
                 yield record
 
         for specification in subset_specification:
@@ -294,5 +307,9 @@ class WikipediaAbstractsStream(WikipediaStream):
             # remove irrelevant information from Wikipedia Title
             if entry == "title":
                 records = clean_wikipedia_titles(records)
+
+            # remove non-alphanumeric characters from Wikipedia Abstract
+            # if entry == "abstract":
+            #     records = clean_wikipedia_abstracts(records)
 
         yield from records
