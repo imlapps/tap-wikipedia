@@ -20,7 +20,7 @@ pydantic = "^2.3.0"
 requests-cache = "^1.1.0"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.4.2"
+pytest = "^7.4.3"
 singer-sdk = { version="^0.31.1", extras = ["testing"] }
 black = "^23.9.1"
 flake8 = "^6.1.0"
