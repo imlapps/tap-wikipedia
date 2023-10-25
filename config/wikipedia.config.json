@@ -4,6 +4,14 @@
         "cache-path": "",
         "subset-spec": [
             "featured"
+        ],
+        "enhancements": [
+            "images",
+            "categories",
+            "externallinks"
+        ],
+        "clean-entries": [
+            "title"
         ]
     }
 }

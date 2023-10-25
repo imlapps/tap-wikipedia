@@ -23,6 +23,8 @@ class Tapwikipedia(Tap):
                 th.Property("abstracts-dump-url", th.StringType),
                 th.Property("cache-path", th.StringType),
                 th.Property("subset-spec", th.ArrayType(th.StringType)),
+                th.Property("enhancements", th.ArrayType(th.StringType)),
+                th.Property("clean-entries", th.ArrayType(th.StringType)),
             ),
         ),
     ).to_dict()
