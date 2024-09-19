@@ -13,8 +13,7 @@ from appdirs import user_cache_dir
 from pathlib import Path
 from urllib.parse import unquote
 from typing import Tuple, Iterable, Dict
-
-import singer_sdk.typing as th
+from tap_wikipedia.models import wikipedia, Config
 from singer_sdk import Tap
 from tap_wikipedia.wikipedia_stream import WikipediaStream
 
@@ -27,48 +26,11 @@ from tap_wikipedia.utils.wikipedia_abstracts_parser import (
 class WikipediaAbstractsStream(WikipediaStream):
     """A concrete implementation of the Wikipedia Stream class."""
 
-    def __init__(self, tap: Tap, wikipedia_config: Dict):
+    def __init__(self, tap: Tap, wikipedia_config: Config):
         super().__init__(
             tap=tap,
             name="abstracts",
-            schema=th.PropertiesList(
-                th.Property(
-                    "abstract_info",
-                    th.ObjectType(
-                        th.Property("title", th.StringType),
-                        th.Property("abstract", th.StringType),
-                        th.Property("url", th.StringType),
-                        th.Property("imageUrl", th.StringType),
-                    ),
-                ),
-                th.Property(
-                    "sublinks",
-                    th.ArrayType(
-                        th.ObjectType(
-                            th.Property("anchor", th.StringType),
-                            th.Property("link", th.StringType),
-                        )
-                    ),
-                ),
-                th.Property(
-                    "categories",
-                    th.ArrayType(
-                        th.ObjectType(
-                            th.Property("text", th.StringType),
-                            th.Property("link", th.StringType),
-                        )
-                    ),
-                ),
-                th.Property(
-                    "externallinks",
-                    th.ArrayType(
-                        th.ObjectType(
-                            th.Property("title", th.StringType),
-                            th.Property("link", th.StringType),
-                        )
-                    ),
-                ),
-            ).to_dict(),
+            schema=wikipedia.Abstract.model_json_schema()
         )
         self.wikipedia_config = wikipedia_config
         self.__logger = logging.getLogger(__name__)

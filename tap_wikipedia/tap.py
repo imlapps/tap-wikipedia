@@ -9,6 +9,7 @@ from singer_sdk import typing as th
 
 from tap_wikipedia.wikipedia_abstracts_stream import WikipediaAbstractsStream
 from tap_wikipedia.wikipedia_stream import WikipediaStream
+from tap_wikipedia.models import Config
 
 
 class Tapwikipedia(Tap):
@@ -16,27 +17,16 @@ class Tapwikipedia(Tap):
 
     name = "tap-wikipedia"
 
-    config_jsonschema = th.PropertiesList(
-        th.Property(
-            "settings",
-            th.ObjectType(
-                th.Property("abstracts-dump-url", th.StringType),
-                th.Property("cache-path", th.StringType),
-                th.Property("subset-spec", th.ArrayType(th.StringType)),
-                th.Property("enhancements", th.ArrayType(th.StringType)),
-                th.Property("clean-entries", th.ArrayType(th.StringType)),
-            ),
-        ),
-    ).to_dict()
+    config_jsonschema = Config.model_json_schema()
 
-    def get_config(self) -> Dict:
+    def get_config(self) -> Config:
         """Return the contents of Tap configuration
 
         Returns:
             A dict of configuration values for tap-wikipedia,
             or None if the config file is empty.
         """
-        return self.config.get("settings", {})
+        return Config(**self.config.get("settings", {}))
 
     def discover_streams(self) -> List[WikipediaStream]:
         """Return a list of discovered streams.
