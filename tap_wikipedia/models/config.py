@@ -1,18 +1,24 @@
+from pathlib import Path
 from typing import Annotated
 from appdirs import user_cache_dir
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from tap_wikipedia.models.types import SubsetSpecification, EnrichmentType
-
-# A custom data type for str fields in Config
-ConfigStringType = Annotated[
-    str, Field(json_schema_extra={"strip_whitespace": "True"})
-]
 
 
 class Config(BaseModel):
-    abstracts_dump_url: ConfigStringType = Field(
-        default="https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract.xml.gz")
-    cache_path: ConfigStringType = Field(
-        default=user_cache_dir("abstracts", "tap-wikipedia"))
-    enrichment_type: tuple[EnrichmentType, ...]
-    subset_specification: tuple[SubsetSpecification, ...]
+    abstracts_dump_url: Annotated[
+        str,
+        Field(min_length=1,
+              default="https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract.xml.gz"
+              ),
+    ]
+    cache_directory_path: Path = Field(
+        default=user_cache_dir("abstracts", "tap-wikipedia")
+    )
+    enrichments: tuple[EnrichmentType, ...]
+    subset_specifications: tuple[SubsetSpecification, ...]
+
+    @field_validator("cache_directory_path", mode="before")
+    @classmethod
+    def convert_to_path(cls, cache_directory_str: str) -> Path:
+        return Path(cache_directory_str)
