@@ -8,8 +8,10 @@ from bs4 import BeautifulSoup
 
 
 import logging
+import json
 from appdirs import user_cache_dir
 from pathlib import Path
+from urllib.parse import unquote
 from typing import Tuple, Iterable, Dict
 
 import singer_sdk.typing as th
@@ -36,7 +38,7 @@ class WikipediaAbstractsStream(WikipediaStream):
                         th.Property("title", th.StringType),
                         th.Property("abstract", th.StringType),
                         th.Property("url", th.StringType),
-                        th.Property("image", th.StringType),
+                        th.Property("imageUrl", th.StringType),
                     ),
                 ),
                 th.Property(
@@ -71,24 +73,61 @@ class WikipediaAbstractsStream(WikipediaStream):
         self.wikipedia_config = wikipedia_config
         self.__logger = logging.getLogger(__name__)
 
-    def __get_wikipedia_record_images(self, url: str) -> str:
-        """Retrieve URL of a single wikipedia record"""
+    def __select_wikipedia_image_resolution(self, file_url: str, width: int) -> str | None:
+        """Use the specified width to retrieve the imageUrl of a particular resolution"""
+
+        base_url = 'https://api.wikimedia.org/core/v1/commons/file/'
+        url = base_url + file_url
+        response = requests.get(url, headers={'User-agent': 'NerdSwipe-gang'})
+        response = json.loads(response.text)
+
+        display_title = response.get('title', "")
+        selected_file_url = None
+
+        try:
+            if ('preferred' in response) and (response['preferred'].get('width', 0) >= width):
+                selected_file_url = response['preferred'].get('url', None)
+            elif ('original' in response):
+                selected_file_url = response['original'].get('url', None)
+            elif ('thumbnail' in response):
+                selected_file_url = response['thumbnail'].get('url', None)
+
+            if selected_file_url == None:
+                if ('preferred' in response) and response['preferred'].get('url') != '':
+                    selected_file_url = response['preferred'].get('url')
+
+        except Exception:
+            self.__logger.warning(
+                        f'error getting imageURL of {display_title}',  # noqa: E501
+                        exc_info=True,
+                    )
+        return selected_file_url
+
+    def __get_wikipedia_record_image_url(self, url: str) -> str | None:
+        """Retrieve image URL of a single wikipedia record"""
 
         response = requests.get(url)
         soup = BeautifulSoup(response.text, "html.parser")
 
-        img_url = ""
+        img_url = None
+        file_description_url = None
 
-        img_url = (
-            soup.find("a", {"class": "mw-file-description"}).findChild().get("src")  # type: ignore # noqa: E501
-        )
-        if img_url is None:
-            img_url = ""
+        file_description_url = soup.find("a", {"class": "mw-file-description"})["href"][6:]  # type: ignore # noqa: E501
+
+        # Get a better resolution of the Wikipedia image
+        if file_description_url is not None:
+            img_url = self.__select_wikipedia_image_resolution(
+                file_description_url, 500)
+
+        # If no better resolution is found, use existing image url on Wikipedia page
+        if img_url == None:
+            img_url = soup.find(
+                "a", {"class": "mw-file-description"}).findChild().get('src', None)
 
         return img_url
 
     def __get_wikipedia_record_categories(self, url: str) -> Tuple[Dict, ...]:
-        """Retrieve URL of a single wikipedia record"""
+        """Retrieve categories of a single wikipedia record"""
 
         response = requests.get(url)
         soup = BeautifulSoup(response.text, "html.parser")
@@ -180,7 +219,9 @@ class WikipediaAbstractsStream(WikipediaStream):
         """Generate Stream of Wikipedia Records"""
 
         # Set default config values
-        default_url = "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz"  # noqa: E501
+        # default_url = "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract.xml.gz"  # noqa: E501
+
+        default_url = "https://dumps.wikimedia.org/enwiki/20240501/enwiki-20240501-abstract.xml.gz"
         default_cache_dir = user_cache_dir("abstracts", "tap-wikipedia")
 
         # Get config values
@@ -203,6 +244,7 @@ class WikipediaAbstractsStream(WikipediaStream):
             )  # noqa: E501
             return 1
 
+        # cached_file_path = "./tap_wikipedia/dumps/abstract1-mini.xml"
         # get Wikipedia records
         records = self.__get_wikipedia_records(cached_file_path)
 
@@ -214,11 +256,11 @@ class WikipediaAbstractsStream(WikipediaStream):
                 if record["abstract_info"]["url"] in featured_urls:
                     yield record
 
-        # adds the main image of the Wikipedia article to the Wikipedia record
-        def add_images_to_records(records) -> Iterable[Dict]:
+        # adds the image url of a Wikipedia article to the Wikipedia record
+        def add_image_url_to_records(records) -> Iterable[Dict]:
             for record in records:
                 try:
-                    img_url = self.__get_wikipedia_record_images(
+                    img_url = self.__get_wikipedia_record_image_url(
                         record["abstract_info"]["url"]
                     )
                 except Exception:
@@ -228,7 +270,7 @@ class WikipediaAbstractsStream(WikipediaStream):
                     )
                     continue
 
-                record["abstract_info"]["image"] = img_url
+                record["abstract_info"]["imageUrl"] = img_url
                 yield record
 
         # adds a list of categories to the Wikipedia record
@@ -249,7 +291,7 @@ class WikipediaAbstractsStream(WikipediaStream):
                 yield record
 
         # adds a list of external links to the Wikipedia record
-        def add_external_links_to_records(records):
+        def add_external_links_to_records(records) -> Iterable[Dict]:
             for record in records:
                 try:
                     external_links = (
@@ -267,6 +309,10 @@ class WikipediaAbstractsStream(WikipediaStream):
                 record["externallinks"] = external_links
                 yield record
 
+        # decodes a string into unicode characters
+        def fix_unicode_errors(wikipedia_string) -> str:
+            return unquote(wikipedia_string)
+
         # removes unwanted information from the title of  Wikipedia records
         def clean_wikipedia_titles(records) -> Iterable[Dict]:
             for record in records:
@@ -280,10 +326,123 @@ class WikipediaAbstractsStream(WikipediaStream):
 
                 yield record
 
-        # removes unwanted information from the abstract of a Wikipedia record
-        def clean_wikipedia_abstracts(records) -> Iterable[Dict]:
+        # Removes unwanted information from the text fields of Wikipedia records.
+        # The text fields in each record's properties are as follows:
+        # - Abstract_info: title, abstract
+        # - Sublinks: anchor
+        # - Categories: text
+        # - ExternalLinks: title
+        def clean_wikipedia_texts(records) -> Iterable[Dict]:
             for record in records:
+                for key in record.keys():
+                    match key:
+                        case "abstract_info":
+                            # Add method to clean wikipedia title
+                            record[key]["title"] = fix_unicode_errors(
+                                record[key]["title"]
+                            )
+                            record[key]["abstract"] = fix_unicode_errors(
+                                record[key]["abstract"]
+                            )
+
+                        case "sublinks":
+                            record[key] = tuple(
+                                map(
+                                    lambda sublink: dict(
+                                        sublink,
+                                        anchor=fix_unicode_errors(
+                                            sublink["anchor"]),
+                                    ),
+                                    record[key],
+                                )
+                            )
+
+                        case "categories":
+                            record[key] = list(
+                                map(
+                                    lambda category: dict(
+                                        category,
+                                        text=fix_unicode_errors(
+                                            category["text"]),
+                                    ),
+                                    record[key],
+                                )
+                            )
+
+                        case "externallinks":
+                            record[key] = list(
+                                map(
+                                    lambda externalEntry: dict(
+                                        externalEntry,
+                                        title=fix_unicode_errors(
+                                            externalEntry["title"]
+                                        ),
+                                    ),
+                                    record[key],
+                                )
+                            )
+
                 yield record
+
+        # removes unwanted information from the link fields of Wikipedia records
+        # The link fields in each record's properties are as follows:
+        # - Abstract_info: url, imageUrl
+        # - Sublinks: link
+        # - Categories: link
+        # - ExternalLinks: link
+        def clean_wikipedia_links(records) -> Iterable[Dict]:
+            for record in records:
+                for key in record.keys():
+                    match key:
+                        case "abstract_info":
+                            record[key]["url"] = fix_unicode_errors(
+                                record[key]["url"])
+                            record[key]["imageUrl"] = fix_unicode_errors(
+                                record[key]["imageUrl"]
+                            )
+
+                        case "sublinks":
+                            record[key] = list(
+                                map(
+                                    lambda sublink: dict(
+                                        sublink,
+                                        anchor=fix_unicode_errors(
+                                            sublink["link"]),
+                                    ),
+                                    record[key],
+                                )
+                            )
+
+                        case "categories":
+                            record[key] = list(
+                                map(
+                                    lambda category: dict(
+                                        category,
+                                        link=fix_unicode_errors(
+                                            category["link"]),
+                                    ),
+                                    record[key],
+                                )
+                            )
+
+                        case "externallinks":
+                            record[key] = list(
+                                map(
+                                    lambda externalEntry: dict(
+                                        externalEntry,
+                                        link=fix_unicode_errors(
+                                            externalEntry["link"]),
+                                    ),
+                                    record[key],
+                                )
+                            )
+
+                yield record
+
+        # removes unwanted information from the abstract of a Wikipedia record
+        # def clean_wikipedia_abstracts(records) -> Iterable[Dict]:
+        #     for record in records:
+        #         yield record
 
         for specification in subset_specification:
             # extract featured Wikipedia Article records
@@ -293,7 +452,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         for enhancement in enhancements:
             # add images to Wikipedia Article records
             if enhancement == "images":
-                records = add_images_to_records(records)
+                records = add_image_url_to_records(records)
 
             # add categories to Wikipedia Article records
             if enhancement == "categories":
@@ -304,9 +463,17 @@ class WikipediaAbstractsStream(WikipediaStream):
                 records = add_external_links_to_records(records)
 
         for entry in clean_entries:
-            # remove irrelevant information from Wikipedia Title
-            if entry == "title":
+            # remove errors in Wikipedia Title
+            if entry == "titles":
                 records = clean_wikipedia_titles(records)
+
+            # remove errors in text fields of Wikipedia records
+            if entry == "texts":
+                records = clean_wikipedia_texts(records)
+
+            # remove errors in link fields of Wikipedia records
+            if entry == "links":
+                records = clean_wikipedia_links(records)
 
             # remove non-alphanumeric characters from Wikipedia Abstract
             # if entry == "abstract":
