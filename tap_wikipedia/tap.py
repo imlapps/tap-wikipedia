@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from singer_sdk import Tap
-
+from singer_sdk import typing as th
 from tap_wikipedia.models import Config
 from tap_wikipedia.wikipedia_abstracts_stream import WikipediaAbstractsStream
+from tap_wikipedia.models.types import EnrichmentType, SubsetSpecification
 
 if TYPE_CHECKING:
     from tap_wikipedia.wikipedia_stream import WikipediaStream
@@ -18,16 +19,29 @@ class TapWikipedia(Tap):
 
     name = "tap-wikipedia"
 
-    config_jsonschema = Config.model_json_schema()
+    config_jsonschema = th.PropertiesList(
+        th.Property(
+            "settings",
+            th.ObjectType(
+                th.Property("abstracts-dump-url", th.StringType),
+                th.Property("cache-directory-path", th.StringType),
+                th.Property("enrichments", th.ArrayType(th.StringType)),
+                th.Property("subset-specifications",
+                            th.ArrayType(th.StringType)),
+            ),
+        ),
+    ).to_dict()
 
     def get_config(self) -> Config:
         """Return the contents of Tap configuration
 
         Returns:
-            A dict of configuration values for tap-wikipedia,
-            or None if the config file is empty.
+            A Config object that contains configuration values for tap-wikipedia
         """
-        return Config(**self.config.get("settings", {}))
+
+        return Config(
+            **self.config.get("settings", {})
+        )
 
     def discover_streams(self) -> list[WikipediaStream]:
         """Return a list of discovered streams.

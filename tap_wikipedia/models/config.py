@@ -15,13 +15,21 @@ class Config(BaseModel):
         Field(
             min_length=1,
             default="https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract.xml.gz",
+            validation_alias="abstracts-dump-url",
         ),
     ]
-    cache_directory_path: Path = Field(
-        default=user_cache_dir("abstracts", "tap-wikipedia")
-    )
-    enrichments: tuple[EnrichmentType, ...]
-    subset_specifications: tuple[SubsetSpecification, ...]
+    cache_directory_path: Annotated[
+        Path,
+        Field(
+            default=Path(user_cache_dir("abstracts", "tap-wikipedia")),
+            validation_alias="cache_directory_path",
+        ),
+    ]
+    enrichments: tuple[EnrichmentType, ...] | None = None
+    subset_specifications: Annotated[
+        tuple[SubsetSpecification, ...] | None,
+        Field(validation_alias="subset-specifications"),
+    ] = None
 
     @field_validator("cache_directory_path", mode="before")
     @classmethod

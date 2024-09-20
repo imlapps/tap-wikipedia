@@ -41,4 +41,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 # CLI declaration
-tap-wikipedia = 'tap_wikipedia.tap:Tapwikipedia.cli'
+tap-wikipedia = 'tap_wikipedia.tap:TapWikipedia.cli'

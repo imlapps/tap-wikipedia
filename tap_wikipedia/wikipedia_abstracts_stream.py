@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from functools import reduce
 import json
 import logging
 from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
-from defusedxml import sax
+from xml import sax
 from requests import HTTPError
 from requests_cache import CachedSession
 
@@ -41,7 +42,7 @@ class WikipediaAbstractsStream(WikipediaStream):
             tap=tap, name="abstracts", schema=wikipedia.Record.model_json_schema()
         )
         self.wikipedia_config = wikipedia_config
-        self.__session = CachedSession("tap_wikipedia_cache", expire_after=3600)
+        self.__session = CachedSession("tap_wikipedia_cache")
         self.__logger = logging.getLogger(__name__)
 
     def __add_categories_to_records(
@@ -97,6 +98,7 @@ class WikipediaAbstractsStream(WikipediaStream):
                 img_url = self.__get_wikipedia_record_image_url(
                     record.abstract_info.url
                 )
+                self.__logger.warning("In __add_image_url_to_records")
             except HTTPError:
                 self.__logger.warning(
                     f"Error while getting the image URL of Wikipedia article: {record.abstract_info.title}",  # noqa: G004
@@ -175,7 +177,8 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         # Clean Wikipedia title
         if wikipedia_title.startswith(WIKIPEDIA_TITLE_PREFIX):
-            wikipedia_title = wikipedia_title[len(WIKIPEDIA_TITLE_PREFIX) :].strip()
+            wikipedia_title = wikipedia_title[len(
+                WIKIPEDIA_TITLE_PREFIX):].strip()
 
         response = self.__session.get(
             url="https://en.wikipedia.org/w/api.php",
@@ -242,7 +245,8 @@ class WikipediaAbstractsStream(WikipediaStream):
         url = base_url + file_description_url
 
         response = dict(
-            json.loads(self.__session.get(url, headers={"User-agent": "Imlapps"}).text)
+            json.loads(self.__session.get(
+                url, headers={"User-agent": "Imlapps"}).text)
         )
 
         display_title = response.get("title", "")
@@ -274,6 +278,27 @@ class WikipediaAbstractsStream(WikipediaStream):
             )
         return selected_file_url
 
+    def pipe(
+        self,
+        *,
+        pipe_callables: list[
+            Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]]
+        ],
+        initializer: Iterable[wikipedia.Record],
+    ) -> Iterable[wikipedia.Record]:
+        """
+        Yield from a pipe of callables.
+
+        Callables in `pipe_callables` are piped in linear order, from left-to-right.
+
+        The input to the first callable of the pipe is `initializer`.
+        """
+        self.__logger.warning("In pipe")
+        self.__logger.warning(pipe_callables)
+        records = reduce(lambda x, y: y(x), pipe_callables, initializer)
+        for record in records:
+            yield record
+
     def get_records(self, context: dict | None) -> Iterable[dict]:  # noqa: ARG002
         """Generate a stream of Wikipedia records"""
 
@@ -287,28 +312,35 @@ class WikipediaAbstractsStream(WikipediaStream):
                 exc_info=True,
             )
 
-        records = self.__get_wikipedia_records(cached_file_path)
-        pipe_callables: list[
-            Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]]
-        ] = []
-
-        for specification in self.wikipedia_config.subset_specifications:
-            if specification == SubsetSpecification.FEATURED:
-                pipe_callables.extend([self.__get_featured_records])
-                # records = get_featured_records(records)
-
-        for enrichment in self.wikipedia_config.enrichments:
-            if enrichment == EnrichmentType.IMAGE_URL:
-                pipe_callables.append(self.__add_image_url_to_records)
-                # records = add_image_url_to_records(records)
-
-            if enrichment == EnrichmentType.CATEGORY:
-                pipe_callables.append(self.__add_categories_to_records)
-                # records = add_categories_to_records(records)
-
-            if enrichment == EnrichmentType.EXTERNAL_LINK:
-                pipe_callables.append(self.__add_external_links_to_records)
-                # records = add_external_links_to_records(records)
-
-        for record in pipe(pipe_callables=tuple(pipe_callables), initializer=records):
+        for record in self.__get_wikipedia_records(cached_file_path):
             yield record.model_dump()
+
+        # pipe_callables: list[
+        #     Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]]
+        # ] = []
+
+        # self.__logger.warning("Obtained records.")
+
+        # for specification in self.wikipedia_config.subset_specifications:
+        #     if specification == SubsetSpecification.FEATURED:
+        #         pipe_callables.extend([self.__get_featured_records])
+        #         # records = get_featured_records(records)
+
+        # for enrichment in self.wikipedia_config.enrichments:
+        #     if enrichment == EnrichmentType.IMAGE_URL:
+        #         pipe_callables.append(self.__add_image_url_to_records)
+        #         # records = add_image_url_to_records(records)
+
+        #     if enrichment == EnrichmentType.CATEGORY:
+        #         pipe_callables.append(self.__add_categories_to_records)
+        #         # records = add_categories_to_records(records)
+
+        #     if enrichment == EnrichmentType.EXTERNAL_LINK:
+        #         pipe_callables.append(self.__add_external_links_to_records)
+        #         # records = add_external_links_to_records(records)
+
+        # self.__logger.warning("Completed assembling of pipe callables.")
+        # # self.__logger.warning(pipe_callables)
+        # self.__logger.warning("Beginning pipe orchestration...")
+        # for record in self.pipe(pipe_callables=pipe_callables, initializer=records):
+        #     yield record.model_dump()

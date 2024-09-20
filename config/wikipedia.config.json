@@ -1,14 +1,14 @@
 {
     "settings": {
-        "abstracts_dump_url": "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz",
-        "cache_directory_path": "",
-        "subset_specification": [
-            "Featured"
-        ],
+        "abstracts-dump-url": "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract10.xml.gz",
+        "cache-directory-path": "",
         "enrichments": [
             "ImageURL",
             "Category",
             "ExternalLink"
+        ],
+        "subset-specifications": [
+            "Featured"
         ]
     }
 }
