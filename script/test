@@ -5,5 +5,5 @@ set -e
 cd "$(dirname "$0")/.."
 
 poetry run black --check tap_wikipedia
-poetry run flake8 tap_wikipedia
+poetry run ruff check tap_wikipedia
 poetry run mypy tap_wikipedia 
