@@ -19,4 +19,8 @@ ignore = [
     "S101",   # Use of assert
     "TRY003", # Avoid specifying long messages outside the exception class
 ]
+
 select = ["ALL"]
+
+[lint.per-file-ignores]
+"tap_wikipedia/utils/wikipedia_abstracts_parser.py" = ["N802"]
