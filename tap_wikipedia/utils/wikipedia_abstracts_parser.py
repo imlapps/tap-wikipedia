@@ -1,33 +1,35 @@
+from dataclasses import dataclass
 from pydantic import BaseModel
-
+from tap_wikipedia.models import wikipedia
 import xml.sax as sax
-from typing import List, Dict, Tuple
-
-
-class _EntityXML(BaseModel):
-    """A Pydantic Model to contain Wikipedia Abstracts"""
-
-    class AbstractInfo(BaseModel):
-        title: str = ""
-        abstract: str = ""
-        url: str = ""
-
-    class Sublink(BaseModel):
-        anchor: str = ""
-        link: str = ""
-
-    abstract_info: AbstractInfo = AbstractInfo()
-    sublinks: List[Sublink] = []
 
 
 class WikipediaAbstractsParser(sax.ContentHandler):
     """SAX Handler for Wikipedia Abstracts"""
 
+    @dataclass
+    class _EntityXML(BaseModel):
+        """A Pydantic Model to contain Wikipedia Abstracts"""
+
+        @dataclass
+        class AbstractInfo(BaseModel):
+            title: str = ""
+            abstract: str = ""
+            url: str = ""
+
+        @dataclass
+        class Sublink(BaseModel):
+            anchor: str = ""
+            link: str = ""
+
+        abstract_info: wikipedia.AbstractInfo = wikipedia.AbstractInfo()
+        sublinks: list[wikipedia.Sublink] = []
+
     def __init__(self):
         self.currentData = ""
-        self.charBuffer: List[str] = []
-        self._records: List[Dict] = []
-        self.abstractData = _EntityXML()
+        self.charBuffer: list[str] = []
+        self._records: list[WikipediaAbstractsParser._EntityXML] = []
+        self.abstractData = WikipediaAbstractsParser._EntityXML()
 
     # reset character buffer and return all its contents as a string
     def flushCharBuffer(self):
@@ -37,16 +39,16 @@ class WikipediaAbstractsParser(sax.ContentHandler):
 
     # store individual records and reset abstracts dictionary
     def storeRecord(self):
-        record = self.abstractData.model_dump()
-
-        self._records.append(record)
-        self.abstractData = _EntityXML()
+        self._records.append(self.abstractData)
+        self.abstractData = WikipediaAbstractsParser._EntityXML()
 
     # Call when an element starts
     def startElement(self, tag, attributes):
         self.currentData = tag
         if tag == "doc":
-            self.abstractData.abstract_info = _EntityXML.AbstractInfo()
+            self.abstractData.abstract_info = (
+                WikipediaAbstractsParser._EntityXML().AbstractInfo()
+            )
             self.abstractData.sublinks = []
 
     # Call when an elements ends
@@ -60,7 +62,7 @@ class WikipediaAbstractsParser(sax.ContentHandler):
                 self.flushCharBuffer()
             )  # noqa: E501
         elif tag == "anchor":
-            sublink = _EntityXML.Sublink()
+            sublink = WikipediaAbstractsParser._EntityXML().Sublink()
             sublink.anchor = self.flushCharBuffer()
             self.abstractData.sublinks.append(sublink)
         elif tag == "link":
@@ -81,7 +83,13 @@ class WikipediaAbstractsParser(sax.ContentHandler):
         elif self.currentData == "link":
             self.charBuffer.append(content)
 
-    # return a Tuple of records
+    # return a tuple of wikipedia.Record
     @property
-    def records(self) -> Tuple[Dict, ...]:
-        return tuple(self._records)
+    def records(self) -> tuple[wikipedia.Record, ...]:
+        return tuple(
+            wikipedia.Record(
+                abstract_info=record.abstract_info, sublinks=tuple(
+                    record.sublinks)
+            )
+            for record in self._records
+        )
