@@ -57,7 +57,7 @@ class WikipediaAbstractsStream(WikipediaStream):
                 )
             except HTTPError:
                 self.__logger.warning(
-                    f"Error while getting the categories of Wikipedia article: {record.abstract_info.title}",  # noqa: G004
+                    f"Error while getting the categories of Wikipedia article: {record.abstract_info.title}",
                     exc_info=True,
                 )
                 continue
@@ -78,7 +78,7 @@ class WikipediaAbstractsStream(WikipediaStream):
                 )
             except HTTPError:
                 self.__logger.warning(
-                    f"Error while getting the external links of Wikipedia article: {record.abstract_info.title}",  # noqa: G004
+                    f"Error while getting the external links of Wikipedia article: {record.abstract_info.title}",
                     exc_info=True,
                 )
                 continue
@@ -100,7 +100,7 @@ class WikipediaAbstractsStream(WikipediaStream):
 
             except HTTPError:
                 self.__logger.warning(
-                    f"Error while getting the image URL of Wikipedia article: {record.abstract_info.title}",  # noqa: G004
+                    f"Error while getting the image URL of Wikipedia article: {record.abstract_info.title}",
                     exc_info=True,
                 )
                 continue
@@ -248,6 +248,36 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         return img_url
 
+    def __select_pipe_callables(
+        self,
+    ) -> tuple[Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]], ...]:
+        """Return a tuple of callables that will be used in a `pipe` function."""
+
+        pipe_callables: list[
+            Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]]
+        ] = []
+
+        if self.wikipedia_config.subset_specifications:
+            for specification in self.wikipedia_config.subset_specifications:
+                if specification == SubsetSpecification.FEATURED:
+                    pipe_callables.extend([self.__get_featured_records])
+
+        if self.wikipedia_config.enrichments:
+            for enrichment in self.wikipedia_config.enrichments:
+                if enrichment == EnrichmentType.IMAGE_URL:
+                    pipe_callables.append(self.__add_image_url_to_records)
+
+                if enrichment == EnrichmentType.CATEGORY:
+                    pipe_callables.append(self.__add_categories_to_records)
+
+                if enrichment == EnrichmentType.EXTERNAL_LINK:
+                    pipe_callables.append(self.__add_external_links_to_records)
+
+        if self.wikipedia_config.clean_wikipedia_title:
+            pipe_callables.append(self.__clean_wikipedia_titles)
+
+        return tuple(pipe_callables)
+
     def __select_wikipedia_image_resolution(
         self, file_description_url: WebPageUrl, minimum_image_width: int
     ) -> ImageUrl | None:
@@ -288,12 +318,12 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         except HTTPError:
             self.__logger.warning(
-                f"Error while selecting an image URL file for {display_title} from Wikimedia Commons.",  # noqa: G004
+                f"Error while selecting an image URL file for {display_title} from Wikimedia Commons.",
                 exc_info=True,
             )
         return selected_file_url
 
-    def get_records(self, context: dict | None) -> Iterable[dict]:  # noqa: ARG002, C901
+    def get_records(self, context: dict | None) -> Iterable[dict]:  # noqa: ARG002
         """Generate a stream of Wikipedia records."""
 
         try:
@@ -302,34 +332,13 @@ class WikipediaAbstractsStream(WikipediaStream):
             ).get_file(self.wikipedia_config.abstracts_dump_url)
         except HTTPError:
             self.__logger.warning(
-                f"Error while downloading Wikipedia dump from {self.wikipedia_config.abstracts_dump_url}",  # noqa: G004
+                f"Error while downloading Wikipedia dump from {self.wikipedia_config.abstracts_dump_url}",
                 exc_info=True,
             )
 
         records = self.__get_wikipedia_records(cached_file_path)
 
-        pipe_callables: list[
-            Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]]
-        ] = []
-
-        if self.wikipedia_config.subset_specifications:
-            for specification in self.wikipedia_config.subset_specifications:
-                if specification == SubsetSpecification.FEATURED:
-                    pipe_callables.extend([self.__get_featured_records])
-
-        if self.wikipedia_config.enrichments:
-            for enrichment in self.wikipedia_config.enrichments:
-                if enrichment == EnrichmentType.IMAGE_URL:
-                    pipe_callables.append(self.__add_image_url_to_records)
-
-                if enrichment == EnrichmentType.CATEGORY:
-                    pipe_callables.append(self.__add_categories_to_records)
-
-                if enrichment == EnrichmentType.EXTERNAL_LINK:
-                    pipe_callables.append(self.__add_external_links_to_records)
-
-        if self.wikipedia_config.clean_wikipedia_title:
-            pipe_callables.append(self.__clean_wikipedia_titles)
-
-        for record in pipe(pipe_callables=tuple(pipe_callables), initializer=records):
+        for record in pipe(
+            pipe_callables=self.__select_pipe_callables(), initializer=records
+        ):
             yield record.model_dump()

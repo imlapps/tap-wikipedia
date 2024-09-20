@@ -12,6 +12,7 @@ ignore = [
     "EM102",  # Exception must not use an f-string literal
     "ERA001", # Commented-out code
     "FA",     # Missing from __future__ import annotations
+    "G004",   # Logging statement uses f-string
     "I001",   # Import block is un-sorted or un-formatted
     "ICN001", # Pandas should be imported as pd
     "N815",   # Mixed-case variables
