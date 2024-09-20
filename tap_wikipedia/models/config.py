@@ -30,6 +30,7 @@ class Config(BaseModel):
         tuple[SubsetSpecification, ...] | None,
         Field(validation_alias="subset-specifications"),
     ] = None
+    clean_wikipedia_title: bool = True
 
     @field_validator("cache_directory_path", mode="before")
     @classmethod

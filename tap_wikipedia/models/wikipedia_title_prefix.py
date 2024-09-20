@@ -1,1 +1,1 @@
-WIKIPEDIA_TITLE_PREFIX = "Wikipedia"
+WIKIPEDIA_TITLE_PREFIX = "Wikipedia:"
