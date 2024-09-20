@@ -1,11 +1,7 @@
-from typing import Annotated
 
-from pydantic import BaseModel, Field
 
-# A custom data type for str fields in Category
-CategoryStringType = Annotated[
-    str, Field(json_schema_extra={"strip_whitespace": "True"})
-]
+from pydantic import BaseModel
+from tap_wikipedia.models.types import CategoryStringType
 
 
 class Category(BaseModel):

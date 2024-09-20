@@ -1,15 +1,11 @@
 from typing import Annotated
 
 from pydantic import BaseModel, Field
-
-# A tiny type for string fields in Sublink
-Sublink = Annotated[
-    str, Field(json_schema_extra={"strip_whitespace": "True"})
-]
+from tap_wikipedia.models.types import SublinkStringType
 
 
 class Sublink(BaseModel):
-    """Pydantic Model to hold a sublink of a Wikipedia Article."""
+    """Pydantic Model to hold a sublink of a Wikipedia article."""
 
-    anchor: Sublink | None = None
-    link: Sublink | None = None
+    anchor: SublinkStringType | None = None
+    link: SublinkStringType | None = None

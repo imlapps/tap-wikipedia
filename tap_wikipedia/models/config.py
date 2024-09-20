@@ -6,11 +6,14 @@ from tap_wikipedia.models.types import SubsetSpecification, EnrichmentType
 
 
 class Config(BaseModel):
+    """A Pydantic Model to hold configuration values of tap-wikipedia."""
+
     abstracts_dump_url: Annotated[
         str,
-        Field(min_length=1,
-              default="https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract.xml.gz"
-              ),
+        Field(
+            min_length=1,
+            default="https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract.xml.gz",
+        ),
     ]
     cache_directory_path: Path = Field(
         default=user_cache_dir("abstracts", "tap-wikipedia")

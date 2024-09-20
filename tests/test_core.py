@@ -9,9 +9,7 @@ from tap_wikipedia.tap import Tapwikipedia
 SAMPLE_CONFIG = {
     "settings": {
         "abstracts-dump-url": "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz",
-        "subset-specification": [
-            "featured"
-        ]
+        "subset-specification": ["featured"],
     }
 }
 
