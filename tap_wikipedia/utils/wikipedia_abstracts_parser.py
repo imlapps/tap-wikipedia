@@ -1,6 +1,8 @@
 from typing import Any
-from tap_wikipedia.models import wikipedia
+
 from defusedxml import sax
+
+from tap_wikipedia.models import wikipedia
 
 
 class WikipediaAbstractsParser(sax.ContentHandler):
@@ -21,38 +23,40 @@ class WikipediaAbstractsParser(sax.ContentHandler):
 
     # store individual records and reset abstracts dictionary
     def storeRecord(self) -> None:
-        self._records.append(
-            wikipedia.Record(
-                abstract_info=self.abstractInfo, sublinks=tuple(self.sublinks)
+        if self.abstractInfo and self.sublinks:
+            self._records.append(
+                wikipedia.Record(
+                    abstract_info=self.abstractInfo, sublinks=tuple(self.sublinks)
+                )
             )
-        )
-        self.abstractInfo = None
-        self.sublinks = None
+
+            self.abstractInfo = None
+            self.sublinks = None
 
     # Call when an element starts
     def startElement(self, tag: str, attributes: Any) -> None:  # noqa: ARG002, ANN401
         self.currentData = tag
         if tag == "doc":
-            self.abstractInfo = wikipedia.AbstractInfo(
-                title="", url="", abstract="")
+            self.abstractInfo = wikipedia.AbstractInfo(title="", url="", abstract="")
             self.sublinks = []
 
     # Call when an elements ends
     def endElement(self, tag: str) -> None:
-        if tag == "title":
-            self.abstractInfo.title = self.flushCharBuffer()
-        elif tag == "url":
-            self.abstractInfo.url = self.flushCharBuffer()
-        elif tag == "abstract":
-            self.abstractInfo.abstract = self.flushCharBuffer()
-        elif tag == "anchor":
-            sublink = wikipedia.Sublink()
-            sublink.anchor = self.flushCharBuffer()
-            self.sublinks.append(sublink)
-        elif tag == "link":
-            self.sublinks[-1].link = self.flushCharBuffer()
-        elif tag == "doc":
-            self.storeRecord()
+        if self.abstractInfo and self.sublinks:
+            if tag == "title":
+                self.abstractInfo.title = self.flushCharBuffer()
+            elif tag == "url":
+                self.abstractInfo.url = self.flushCharBuffer()
+            elif tag == "abstract":
+                self.abstractInfo.abstract = self.flushCharBuffer()
+            elif tag == "anchor":
+                sublink = wikipedia.Sublink()
+                sublink.anchor = self.flushCharBuffer()
+                self.sublinks.append(sublink)
+            elif tag == "link":
+                self.sublinks[-1].link = self.flushCharBuffer()
+            elif tag == "doc":
+                self.storeRecord()
 
     # store each chunk of character data within character buffer
     def characters(self, content: str) -> None:

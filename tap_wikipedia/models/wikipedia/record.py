@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 
-
-from tap_wikipedia.models.wikipedia import Category, ExternalLink, Sublink, AbstractInfo
+from tap_wikipedia.models.wikipedia import AbstractInfo, Category, ExternalLink, Sublink
 
 
 class Record(BaseModel):

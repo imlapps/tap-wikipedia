@@ -1,8 +1,10 @@
 from pathlib import Path
 from typing import Annotated
+
 from appdirs import user_cache_dir
 from pydantic import BaseModel, Field, field_validator
-from tap_wikipedia.models.types import SubsetSpecification, EnrichmentType
+
+from tap_wikipedia.models.types import EnrichmentType, SubsetSpecification
 
 
 class Config(BaseModel):

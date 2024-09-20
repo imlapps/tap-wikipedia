@@ -1,6 +1,5 @@
-
-
 from pydantic import BaseModel
+
 from tap_wikipedia.models.types import CategoryStringType
 
 

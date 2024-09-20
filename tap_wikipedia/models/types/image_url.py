@@ -1,4 +1,5 @@
 from typing import Annotated
+
 from pydantic import Field
 
 # A tiny type for a Wikipedia article's ImageURL.

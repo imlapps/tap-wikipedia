@@ -1,6 +1,5 @@
-from typing import Annotated
+from pydantic import BaseModel
 
-from pydantic import BaseModel, Field
 from tap_wikipedia.models.types import SublinkStringType
 
 

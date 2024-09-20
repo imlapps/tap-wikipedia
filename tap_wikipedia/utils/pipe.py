@@ -1,6 +1,7 @@
 from collections.abc import Callable, Iterable
-from tap_wikipedia.models import wikipedia
 from functools import reduce
+
+from tap_wikipedia.models import wikipedia
 
 
 def pipe(
@@ -10,11 +11,11 @@ def pipe(
     ],
     initializer: Iterable[wikipedia.Record],
 ) -> Iterable[wikipedia.Record]:
-    """ 
-        Yield from a pipe of callables. 
+    """
+    Yield from a pipe of callables.
 
-        Callables in `pipe_callables` are piped in linear order, from left-to-right.
+    Callables in `pipe_callables` are piped in linear order, from left-to-right.
 
-        The input to the first callable of the pipe is `initializer`.
+    The input to the first callable of the pipe is `initializer`.
     """
     yield from reduce(lambda x, y: y(x), pipe_callables, initializer)

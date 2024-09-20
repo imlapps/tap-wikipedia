@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-from typing import List, Dict
+from typing import TYPE_CHECKING
 
 from singer_sdk import Tap
-from singer_sdk import typing as th
 
-from tap_wikipedia.wikipedia_abstracts_stream import WikipediaAbstractsStream
-from tap_wikipedia.wikipedia_stream import WikipediaStream
 from tap_wikipedia.models import Config
+from tap_wikipedia.wikipedia_abstracts_stream import WikipediaAbstractsStream
+
+if TYPE_CHECKING:
+    from tap_wikipedia.wikipedia_stream import WikipediaStream
 
 
-class Tapwikipedia(Tap):
-    """wikipedia tap class."""
+class TapWikipedia(Tap):
+    """Singer Tap for Wikipedia data."""
 
     name = "tap-wikipedia"
 
@@ -28,18 +29,14 @@ class Tapwikipedia(Tap):
         """
         return Config(**self.config.get("settings", {}))
 
-    def discover_streams(self) -> List[WikipediaStream]:
+    def discover_streams(self) -> list[WikipediaStream]:
         """Return a list of discovered streams.
 
         Returns:
             A list of discovered streams.
         """
-        return [
-            WikipediaAbstractsStream(
-                tap=self, wikipedia_config=self.get_config()  # noqa: E501
-            )
-        ]
+        return [WikipediaAbstractsStream(tap=self, wikipedia_config=self.get_config())]
 
 
 if __name__ == "__main__":
-    Tapwikipedia.cli()
+    TapWikipedia.cli()
