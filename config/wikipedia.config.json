@@ -1,6 +1,6 @@
 {
     "settings": {
-        "abstracts-dump-url": "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract10.xml.gz",
+        "abstracts-dump-url": "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract.xml.gz",
         "cache-directory-path": "",
         "enrichments": [
             "ImageURL",
