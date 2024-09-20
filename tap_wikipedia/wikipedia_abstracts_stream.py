@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from functools import reduce
 import json
 import logging
 from typing import TYPE_CHECKING
+from xml import sax
 
 from bs4 import BeautifulSoup
-from xml import sax
 from requests import HTTPError
 from requests_cache import CachedSession
 
@@ -113,7 +112,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         """Remove `WIKIPEDIA_TITLE_PREFIX` from a `wikipedia_title`."""
 
         if wikipedia_title.startswith(WIKIPEDIA_TITLE_PREFIX):
-            return wikipedia_title[len(WIKIPEDIA_TITLE_PREFIX):].strip()
+            return wikipedia_title[len(WIKIPEDIA_TITLE_PREFIX) :].strip()
 
         return wikipedia_title
 
@@ -162,7 +161,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         """Parse Wikipedia abstracts and return a tuple of Wikipedia records."""
 
         # Setup parser
-        parser = sax.make_parser()
+        parser = sax.make_parser()  # noqa: S317
         parser.setFeature(sax.handler.feature_namespaces, 0)
 
         # Instantiate SAX Handler and run parser
@@ -262,8 +261,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         url = base_url + file_description_url
 
         response = dict(
-            json.loads(self.__session.get(
-                url, headers={"User-agent": "Imlapps"}).text)
+            json.loads(self.__session.get(url, headers={"User-agent": "Imlapps"}).text)
         )
 
         display_title = response.get("title", "")
@@ -295,7 +293,7 @@ class WikipediaAbstractsStream(WikipediaStream):
             )
         return selected_file_url
 
-    def get_records(self, context: dict | None) -> Iterable[dict]:  # noqa: ARG002
+    def get_records(self, context: dict | None) -> Iterable[dict]:  # noqa: ARG002, C901
         """Generate a stream of Wikipedia records."""
 
         try:
@@ -314,22 +312,24 @@ class WikipediaAbstractsStream(WikipediaStream):
             Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]]
         ] = []
 
-        for specification in self.wikipedia_config.subset_specifications:
-            if specification == SubsetSpecification.FEATURED:
-                pipe_callables.extend([self.__get_featured_records])
+        if self.wikipedia_config.subset_specifications:
+            for specification in self.wikipedia_config.subset_specifications:
+                if specification == SubsetSpecification.FEATURED:
+                    pipe_callables.extend([self.__get_featured_records])
 
-        for enrichment in self.wikipedia_config.enrichments:
-            if enrichment == EnrichmentType.IMAGE_URL:
-                pipe_callables.append(self.__add_image_url_to_records)
+        if self.wikipedia_config.enrichments:
+            for enrichment in self.wikipedia_config.enrichments:
+                if enrichment == EnrichmentType.IMAGE_URL:
+                    pipe_callables.append(self.__add_image_url_to_records)
 
-            if enrichment == EnrichmentType.CATEGORY:
-                pipe_callables.append(self.__add_categories_to_records)
+                if enrichment == EnrichmentType.CATEGORY:
+                    pipe_callables.append(self.__add_categories_to_records)
 
-            if enrichment == EnrichmentType.EXTERNAL_LINK:
-                pipe_callables.append(self.__add_external_links_to_records)
+                if enrichment == EnrichmentType.EXTERNAL_LINK:
+                    pipe_callables.append(self.__add_external_links_to_records)
 
         if self.wikipedia_config.clean_wikipedia_title:
             pipe_callables.append(self.__clean_wikipedia_titles)
 
-        for record in pipe(pipe_callables=pipe_callables, initializer=records):
+        for record in pipe(pipe_callables=tuple(pipe_callables), initializer=records):
             yield record.model_dump()

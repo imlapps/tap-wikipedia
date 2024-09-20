@@ -1,6 +1,5 @@
 from typing import Any
-
-import xml.sax as sax
+from xml import sax
 
 from tap_wikipedia.models import wikipedia
 
@@ -13,7 +12,7 @@ class WikipediaAbstractsParser(sax.ContentHandler):
         self.abstractInfo: wikipedia.AbstractInfo | None
         self.charBuffer: list[str] = []
         self.currentData: str
-        self.sublinks: list[wikipedia.Sublink] | None
+        self.sublinks: list[wikipedia.Sublink]
 
     # reset character buffer and return all its contents as a string
     def flushCharBuffer(self) -> str:
@@ -26,19 +25,17 @@ class WikipediaAbstractsParser(sax.ContentHandler):
         if self.abstractInfo and self.sublinks:
             self._records.append(
                 wikipedia.Record(
-                    abstract_info=self.abstractInfo, sublinks=tuple(
-                        self.sublinks)
+                    abstract_info=self.abstractInfo, sublinks=tuple(self.sublinks)
                 )
             )
             self.abstractInfo = None
-            self.sublinks = None
+            self.sublinks = []
 
     # Call when an element starts
     def startElement(self, tag: str, attributes: Any) -> None:  # noqa: ARG002, ANN401
         self.currentData = tag
         if tag == "doc":
-            self.abstractInfo = wikipedia.AbstractInfo(
-                title="", url="", abstract="")
+            self.abstractInfo = wikipedia.AbstractInfo(title="", url="", abstract="")
             self.sublinks = []
 
     # Call when an elements ends
@@ -67,5 +64,4 @@ class WikipediaAbstractsParser(sax.ContentHandler):
     # return a tuple of wikipedia.Record
     @property
     def records(self) -> tuple[wikipedia.Record, ...]:
-
         return tuple(self._records)
