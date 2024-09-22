@@ -112,7 +112,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         """Remove `WIKIPEDIA_TITLE_PREFIX` from a `wikipedia_title`."""
 
         if wikipedia_title.startswith(WIKIPEDIA_TITLE_PREFIX):
-            return wikipedia_title[len(WIKIPEDIA_TITLE_PREFIX):].strip()
+            return wikipedia_title[len(WIKIPEDIA_TITLE_PREFIX) :].strip()
 
         return wikipedia_title
 
@@ -224,15 +224,14 @@ class WikipediaAbstractsStream(WikipediaStream):
             self.__session.get(wikipedia_article_url).text, "html.parser"
         )
 
-        file_description_element = soup.find(
-            "a", {"class": "mw-file-description"})
+        file_description_element = soup.find("a", {"class": "mw-file-description"})
 
         if file_description_element:
-            file_description_url = file_description_element["href"][6:]
+            file_description_url = file_description_element["href"][6:]  # type: ignore[index]
 
         # Get a better resolution of the Wikipedia image
-        minimum_image_width = 500
         if file_description_url is not None:
+            minimum_image_width = 500
             img_url = self.__select_wikipedia_image_resolution(
                 str(file_description_url), minimum_image_width
             )
@@ -292,8 +291,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         url = base_url + file_description_url
 
         response = dict(
-            json.loads(self.__session.get(
-                url, headers={"User-agent": "Imlapps"}).text)
+            json.loads(self.__session.get(url, headers={"User-agent": "Imlapps"}).text)
         )
 
         display_title = response.get("title", "")
