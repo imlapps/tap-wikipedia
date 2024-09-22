@@ -9,7 +9,13 @@ from bs4 import BeautifulSoup
 from requests import HTTPError
 from requests_cache import CachedSession
 
-from tap_wikipedia.models import WIKIPEDIA_TITLE_PREFIX, Config, wikipedia, WikipediaUrl
+from tap_wikipedia.models import (
+    WIKI_SUBDIRECTORY,
+    WIKIPEDIA_TITLE_PREFIX,
+    Config,
+    WikipediaUrl,
+    wikipedia,
+)
 from tap_wikipedia.models.types import (
     EnrichmentType,
     ImageUrl,
@@ -132,14 +138,17 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         links = []
 
-        soup = BeautifulSoup(
+        for link in BeautifulSoup(
             self.__session.get(WikipediaUrl.FEATURED_ARTICLES).text, "html.parser"
-        )
-
-        for link in soup.find_all("a"):
-            current_link = str(link.get("href"))
-            if current_link[:5] == "/wiki":
-                links.append(current_link)
+        ):
+            links = [
+                (
+                    current_link[: len(WIKI_SUBDIRECTORY)]
+                    if current_link[: len(WIKI_SUBDIRECTORY)] == WIKI_SUBDIRECTORY
+                    else current_link
+                )
+                for current_link in str(link.get("href"))  # type: ignore[attr-defined]
+            ]
 
         links.sort()
         return tuple(WikipediaUrl.BASE_URL + link for link in links)
@@ -150,10 +159,8 @@ class WikipediaAbstractsStream(WikipediaStream):
     ) -> Iterable[wikipedia.Record]:
         """Retrieve a list of featured Wikipedia article URLs and yield records that match the URLs."""
 
-        featured_urls = self.__get_featured_articles_urls()
-
         for record in records:
-            if record.abstract_info.url in featured_urls:
+            if record.abstract_info.url in self.__get_featured_articles_urls():
                 yield record
 
     def __get_wikipedia_records(
@@ -194,23 +201,19 @@ class WikipediaAbstractsStream(WikipediaStream):
     ) -> tuple[wikipedia.ExternalLink, ...]:
         """Return a tuple of external Wikipedia article links on a Wikipedia article."""
 
-        wikipedia_title = self.__clean_wikipedia_title(wikipedia_title)
-
-        response = self.__session.get(
-            url=WikipediaUrl.MEDIA_WIKI_API,
-            params={
-                "action": "parse",
-                "page": wikipedia_title,
-                "format": "json",
-            },
-        )
-
         return tuple(
             wikipedia.ExternalLink(
                 title=wikipedia_json["*"].title(),
                 link=WikipediaUrl.WIKI + wikipedia_json["*"].replace(" ", "_"),
             )
-            for wikipedia_json in response.json()["parse"]["links"]
+            for wikipedia_json in self.__session.get(
+                url=WikipediaUrl.MEDIA_WIKI_API,
+                params={
+                    "action": "parse",
+                    "page": self.__clean_wikipedia_title(wikipedia_title),
+                    "format": "json",
+                },
+            ).json()["parse"]["links"]
             if wikipedia_json["ns"] == 0
         )
 
