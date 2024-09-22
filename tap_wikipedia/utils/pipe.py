@@ -6,7 +6,7 @@ from tap_wikipedia.models import wikipedia
 
 def pipe(
     *,
-    pipe_callables: tuple[
+    callables: tuple[
         Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]], ...
     ],
     initializer: Iterable[wikipedia.Record],
@@ -14,8 +14,8 @@ def pipe(
     """
     Yield from a pipe of callables.
 
-    Callables in `pipe_callables` are piped in linear order, from left-to-right.
+    The callables are piped in linear order, from left-to-right.
 
     The input to the first callable of the pipe is `initializer`.
     """
-    yield from reduce(lambda x, y: y(x), pipe_callables, initializer)
+    yield from reduce(lambda x, y: y(x), callables, initializer)

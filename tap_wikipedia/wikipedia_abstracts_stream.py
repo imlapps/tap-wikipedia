@@ -112,7 +112,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         """Remove `WIKIPEDIA_TITLE_PREFIX` from a `wikipedia_title`."""
 
         if wikipedia_title.startswith(WIKIPEDIA_TITLE_PREFIX):
-            return wikipedia_title[len(WIKIPEDIA_TITLE_PREFIX) :].strip()
+            return wikipedia_title[len(WIKIPEDIA_TITLE_PREFIX):].strip()
 
         return wikipedia_title
 
@@ -193,7 +193,6 @@ class WikipediaAbstractsStream(WikipediaStream):
     ) -> tuple[wikipedia.ExternalLink, ...]:
         """Return a tuple of external Wikipedia article links on a Wikipedia article."""
 
-        # Clean Wikipedia title
         wikipedia_title = self.__clean_wikipedia_title(wikipedia_title)
 
         response = self.__session.get(
@@ -225,10 +224,11 @@ class WikipediaAbstractsStream(WikipediaStream):
             self.__session.get(wikipedia_article_url).text, "html.parser"
         )
 
-        file_description_class_tag = soup.find("a", {"class": "mw-file-description"})
+        file_description_element = soup.find(
+            "a", {"class": "mw-file-description"})
 
-        if file_description_class_tag:
-            file_description_url = file_description_class_tag["href"][6:] # type: ignore[index]
+        if file_description_element:
+            file_description_url = file_description_element["href"][6:]
 
         # Get a better resolution of the Wikipedia image
         minimum_image_width = 500
@@ -249,10 +249,10 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         return img_url
 
-    def __select_pipe_callables(
+    def __select_wikipedia_config_callables(
         self,
     ) -> tuple[Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]], ...]:
-        """Return a tuple of callables that will be used in a `pipe` function."""
+        """Return a tuple of callables that are related to parameters in wikipedia_config."""
 
         pipe_callables: list[
             Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]]
@@ -292,7 +292,8 @@ class WikipediaAbstractsStream(WikipediaStream):
         url = base_url + file_description_url
 
         response = dict(
-            json.loads(self.__session.get(url, headers={"User-agent": "Imlapps"}).text)
+            json.loads(self.__session.get(
+                url, headers={"User-agent": "Imlapps"}).text)
         )
 
         display_title = response.get("title", "")
@@ -340,6 +341,6 @@ class WikipediaAbstractsStream(WikipediaStream):
         records = self.__get_wikipedia_records(cached_file_path)
 
         for record in pipe(
-            pipe_callables=self.__select_pipe_callables(), initializer=records
+            callables=self.__select_wikipedia_config_callables(), initializer=records
         ):
             yield record.model_dump()
