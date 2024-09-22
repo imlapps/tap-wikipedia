@@ -4,7 +4,7 @@ from tap_wikipedia.models.types import CategoryStringType
 
 
 class Category(BaseModel):
-    """Pydantic Model to hold a category of a Wikipedia Article."""
+    """Pydantic Model to hold a category of a Wikipedia article."""
 
     text: CategoryStringType | None = None
     link: CategoryStringType | None = None

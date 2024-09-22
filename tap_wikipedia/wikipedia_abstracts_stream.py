@@ -37,9 +37,9 @@ class WikipediaAbstractsStream(WikipediaStream):
     """
     A concrete implementation of Wikipedia Stream.
 
-    Extract abstracts dumps from the Wikimedia Foundation project (`dumps.wikimedia.org`),
+    Extract an abstracts dump from the Wikimedia Foundation project (`dumps.wikimedia.org`),
 
-    parse the abstracts into records, and yield them.
+    parse the abstracts, and yield them as records.
     """
 
     def __init__(self, tap: Tap, wikipedia_config: Config):
@@ -96,7 +96,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         self,
         records: Iterable[wikipedia.Record],
     ) -> Iterable[wikipedia.Record]:
-        """Enrich Wikipedia records with their ImageURLs and yield the records."""
+        """Enrich Wikipedia records with their image URLs and yield the records."""
 
         for record in records:
             try:
@@ -115,7 +115,7 @@ class WikipediaAbstractsStream(WikipediaStream):
             yield record
 
     def __clean_wikipedia_title(self, wikipedia_title: Title) -> Title:
-        """Remove `WIKIPEDIA_TITLE_PREFIX` from a `wikipedia_title`."""
+        """Remove `WIKIPEDIA_TITLE_PREFIX` from a Wikipedia title."""
 
         if wikipedia_title.startswith(WIKIPEDIA_TITLE_PREFIX):
             return wikipedia_title[len(WIKIPEDIA_TITLE_PREFIX) :].strip()
@@ -199,7 +199,7 @@ class WikipediaAbstractsStream(WikipediaStream):
     def __get_wikipedia_record_external_links(
         self, wikipedia_title: Title
     ) -> tuple[wikipedia.ExternalLink, ...]:
-        """Return a tuple of external Wikipedia article links on a Wikipedia article."""
+        """Return a tuple of external Wikipedia article links on a Wikipedia page."""
 
         return tuple(
             wikipedia.ExternalLink(
@@ -285,7 +285,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         self, file_description_url: WebPageUrl, minimum_image_width: int
     ) -> ImageUrl | None:
         """
-        Retrieve the ImageURL of a high-quality image from Wikimedia Commons API.
+        Retrieve a high-quality image from Wikimedia Commons API.
 
         `minimum_image_width` is used as a guide to select the best image from the API.
         """
@@ -321,7 +321,7 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         except HTTPError:
             self.__logger.warning(
-                f"Error while selecting an image URL file for {display_title} from Wikimedia Commons.",
+                f"Error while selecting an image URL for {display_title} from Wikimedia Commons.",
                 exc_info=True,
             )
         return selected_file_url

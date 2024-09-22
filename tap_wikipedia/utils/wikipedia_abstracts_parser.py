@@ -61,7 +61,7 @@ class WikipediaAbstractsParser(sax.ContentHandler):
         if self.currentData in ("title", "url", "abstract", "anchor", "link"):
             self.charBuffer.append(content)
 
-    # return a tuple of wikipedia.Record
+    # return a tuple of Wikipedia records
     @property
     def records(self) -> tuple[wikipedia.Record, ...]:
         return tuple(self._records)
