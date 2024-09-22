@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from requests import HTTPError
 from requests_cache import CachedSession
 
-from tap_wikipedia.models import WIKIPEDIA_TITLE_PREFIX, Config, wikipedia
+from tap_wikipedia.models import WIKIPEDIA_TITLE_PREFIX, Config, wikipedia, WikipediaUrl
 from tap_wikipedia.models.types import (
     EnrichmentType,
     ImageUrl,
@@ -130,10 +130,11 @@ class WikipediaAbstractsStream(WikipediaStream):
     def __get_featured_articles_urls(self) -> tuple[WebPageUrl, ...]:
         """Retrieve URLs of featured Wikipedia articles."""
 
-        url = "https://en.wikipedia.org/wiki/Wikipedia:Featured_articles"
         links = []
 
-        soup = BeautifulSoup(self.__session.get(url).text, "html.parser")
+        soup = BeautifulSoup(
+            self.__session.get(WikipediaUrl.FEATURED_ARTICLES).text, "html.parser"
+        )
 
         for link in soup.find_all("a"):
             current_link = str(link.get("href"))
@@ -141,7 +142,7 @@ class WikipediaAbstractsStream(WikipediaStream):
                 links.append(current_link)
 
         links.sort()
-        return tuple("https://en.wikipedia.org" + link for link in links)
+        return tuple(WikipediaUrl.BASE_URL + link for link in links)
 
     def __get_featured_records(
         self,
@@ -196,7 +197,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         wikipedia_title = self.__clean_wikipedia_title(wikipedia_title)
 
         response = self.__session.get(
-            url="https://en.wikipedia.org/w/api.php",
+            url=WikipediaUrl.MEDIA_WIKI_API,
             params={
                 "action": "parse",
                 "page": wikipedia_title,
@@ -207,8 +208,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         return tuple(
             wikipedia.ExternalLink(
                 title=wikipedia_json["*"].title(),
-                link="https://en.wikipedia.org/wiki/"
-                + wikipedia_json["*"].replace(" ", "_"),
+                link=WikipediaUrl.WIKI + wikipedia_json["*"].replace(" ", "_"),
             )
             for wikipedia_json in response.json()["parse"]["links"]
             if wikipedia_json["ns"] == 0
