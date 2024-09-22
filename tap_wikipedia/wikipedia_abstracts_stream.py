@@ -225,9 +225,10 @@ class WikipediaAbstractsStream(WikipediaStream):
             self.__session.get(wikipedia_article_url).text, "html.parser"
         )
 
-        file_description_url = soup.find("a", {"class": "mw-file-description"})["href"][  # type: ignore[index]
-            6:
-        ]
+        file_description_class_tag = soup.find("a", {"class": "mw-file-description"})
+
+        if file_description_class_tag:
+            file_description_url = file_description_class_tag["href"][6:] # type: ignore[index]
 
         # Get a better resolution of the Wikipedia image
         minimum_image_width = 500
