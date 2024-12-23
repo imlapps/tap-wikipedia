@@ -1,17 +1,13 @@
-from pydantic import BaseModel
+from pydantic import AnyUrl, BaseModel
 
-from tap_wikipedia.models.types import (
-    StrippedString as Title,
-    StrippedString as WebPageUrl,
-    StrippedString as Abstract,
-    StrippedString as ImageUrl,
-)
+from tap_wikipedia.models.types import StrippedString as Abstract
+from tap_wikipedia.models.types import StrippedString as Title
 
 
 class AbstractInfo(BaseModel):
     """Pydantic Model to hold the contents extracted from the Wikipedia abstracts dump."""
 
     title: Title
-    url: WebPageUrl
+    url: AnyUrl
     abstract: Abstract
-    imageUrl: ImageUrl | None = None
+    imageUrl: AnyUrl | None = None

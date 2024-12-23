@@ -1,32 +1,25 @@
 from __future__ import annotations
 
-
-from functools import reduce
 import json
 import logging
+from functools import reduce
 from typing import TYPE_CHECKING
 from xml import sax
 
-
 from bs4 import BeautifulSoup
+from pydantic import AnyUrl
 from requests import HTTPError
 from requests_cache import CachedSession
+
 from tap_wikipedia.constants import (
-    WikipediaUrl,
     WIKI_SUBDIRECTORY,
     WIKIPEDIA_TITLE_PREFIX,
+    WikipediaUrl,
 )
-from tap_wikipedia.models import (
-    Config,
-    wikipedia,
-)
-from tap_wikipedia.models.types import (
-    EnrichmentType,
-    SubsetSpecification,
-    StrippedString as Title,
-    StrippedString as ImageUrl,
-    StrippedString as WebPageUrl,
-)
+from tap_wikipedia.models import Config, wikipedia
+from tap_wikipedia.models.types import EnrichmentType, NonBlankString
+from tap_wikipedia.models.types import StrippedString as Title
+from tap_wikipedia.models.types import SubsetSpecification
 from tap_wikipedia.utils import FileCache, WikipediaAbstractsParser
 from tap_wikipedia.wikipedia_stream import WikipediaStream
 
@@ -137,7 +130,7 @@ class WikipediaAbstractsStream(WikipediaStream):
             )
             yield record
 
-    def __get_featured_articles_urls(self) -> tuple[ImageUrl, ...]:
+    def __get_featured_articles_urls(self) -> tuple[AnyUrl, ...]:
         """Retrieve URLs of featured Wikipedia articles."""
 
         featured_articles_urls = [
@@ -155,7 +148,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         featured_articles_urls.sort()
 
         return tuple(
-            WikipediaUrl.BASE_URL + featured_article_url
+            AnyUrl(WikipediaUrl.BASE_URL + featured_article_url)
             for featured_article_url in featured_articles_urls
         )
 
@@ -188,7 +181,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         return handler.records
 
     def __get_wikipedia_record_categories(
-        self, wikipedia_article_url: WebPageUrl
+        self, wikipedia_article_url: AnyUrl
     ) -> tuple[wikipedia.Category, ...]:
         """Return a tuple of a Wikipedia article's categories."""
 
@@ -197,7 +190,7 @@ class WikipediaAbstractsStream(WikipediaStream):
                 text=category_item.get("href"), link=category_item.text.strip()
             )
             for category_item in BeautifulSoup(  # type: ignore[union-attr]
-                self.__session.get(wikipedia_article_url).text, "html.parser"
+                self.__session.get(str(wikipedia_article_url)).text, "html.parser"
             )
             .find("a", {"title": "Help:Category"})
             .find_next_sibling()
@@ -227,8 +220,8 @@ class WikipediaAbstractsStream(WikipediaStream):
         )
 
     def __get_wikipedia_record_image_url(
-        self, wikipedia_article_url: WebPageUrl
-    ) -> ImageUrl | None:
+        self, wikipedia_article_url: AnyUrl
+    ) -> AnyUrl | None:
         """Retrieve the ImageURL of a Wikipedia record."""
 
         img_url = None
@@ -239,24 +232,26 @@ class WikipediaAbstractsStream(WikipediaStream):
         file_description_element = soup.find("a", {"class": "mw-file-description"})
 
         if file_description_element:
-            file_description_url = file_description_element["href"][6:]  # type: ignore[index]
+            file_description = file_description_element["href"][len(WIKI_SUBDIRECTORY) :]  # type: ignore[index]
 
-        # Get a better resolution of the Wikipedia image
-        if file_description_url is not None:
+        # Get a better resolution of the Wikipedia image.
+        if file_description is not None and str(file_description):
             minimum_image_width = 500
             img_url = self.__select_wikipedia_image_resolution(
-                str(file_description_url), minimum_image_width
+                str(file_description), minimum_image_width
             )
 
-        # If no better resolution is found, use existing image url on Wikipedia page
+        # If no better resolution is found, use existing image url on Wikipedia page.
         if img_url is None:
-            img_url = (
+            image_url = str(
                 soup.find(  # type: ignore[union-attr, assignment]
                     "a", {"class": "mw-file-description"}
                 )
                 .findChild()
                 .get("src", None)
             )
+
+            img_url = AnyUrl("https://" + image_url)
 
         return img_url
 
@@ -291,8 +286,8 @@ class WikipediaAbstractsStream(WikipediaStream):
         return tuple(pipe_callables)
 
     def __select_wikipedia_image_resolution(
-        self, file_description_url: WebPageUrl, minimum_image_width: int
-    ) -> ImageUrl | None:
+        self, file_description: NonBlankString, minimum_image_width: int
+    ) -> AnyUrl | None:
         """
         Retrieve a high-quality image from Wikimedia Commons API.
 
@@ -300,40 +295,40 @@ class WikipediaAbstractsStream(WikipediaStream):
         """
 
         base_url = "https://api.wikimedia.org/core/v1/commons/file/"
-        url = base_url + str(file_description_url)
+        url = base_url + file_description
 
         response = dict(
             json.loads(self.__session.get(url, headers={"User-agent": "Imlapps"}).text)
         )
 
         display_title = response.get("title", "")
-        selected_file_url = None
+        selected_image_url = None
 
         try:
             # Select an image in increasing order of preference.
             if ("preferred" in response) and (
                 response["preferred"].get("width", 0) >= minimum_image_width
             ):
-                selected_file_url = response["preferred"].get("url", None)
+                selected_image_url = AnyUrl(response["preferred"].get("url", None))
             elif "original" in response:
-                selected_file_url = response["original"].get("url", None)
+                selected_image_url = AnyUrl(response["original"].get("url", None))
             elif "thumbnail" in response:
-                selected_file_url = response["thumbnail"].get("url", None)
+                selected_image_url = AnyUrl(response["thumbnail"].get("url", None))
 
-            # If no image is selected, settle for an image with a width less than the minimum_image_width
+            # If no image is selected, settle for an image with a width less than the minimum_image_width.
             if (
-                selected_file_url is None
+                selected_image_url is None
                 and ("preferred" in response)
                 and response["preferred"].get("url") != ""
             ):
-                selected_file_url = response["preferred"].get("url")
+                selected_image_url = AnyUrl(response["preferred"].get("url"))
 
         except HTTPError:
             self.__logger.warning(
                 f"Error while selecting an image URL for {display_title} from Wikimedia Commons.",
                 exc_info=True,
             )
-        return selected_file_url
+        return selected_image_url
 
     def get_records(self, context: dict | None) -> Iterable[dict]:  # noqa: ARG002
         """Generate a stream of Wikipedia records."""

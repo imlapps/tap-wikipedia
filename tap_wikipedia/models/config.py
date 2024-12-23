@@ -4,6 +4,7 @@ from typing import Annotated
 from appdirs import user_cache_dir
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
+
 from tap_wikipedia.models.types import EnrichmentType, SubsetSpecification
 
 

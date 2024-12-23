@@ -1,6 +1,9 @@
 from typing import Any
 from xml import sax
 
+from pydantic import AnyUrl
+
+from tap_wikipedia.constants import WikipediaUrl
 from tap_wikipedia.models import wikipedia
 
 
@@ -37,7 +40,7 @@ class WikipediaAbstractsParser(sax.ContentHandler):
         if tag == "doc":
             self.__abstract_info = wikipedia.AbstractInfo(
                 title="",
-                url="",
+                url=AnyUrl(WikipediaUrl.BASE_URL),
                 abstract="",
             )
             self.__sublinks = []
@@ -48,7 +51,7 @@ class WikipediaAbstractsParser(sax.ContentHandler):
             if tag == "title":
                 self.__abstract_info.title = self.flush_char_buffer()
             elif tag == "url":
-                self.__abstract_info.url = self.flush_char_buffer()
+                self.__abstract_info.url = AnyUrl(self.flush_char_buffer())
             elif tag == "abstract":
                 self.__abstract_info.abstract = self.flush_char_buffer()
             elif tag == "anchor":
