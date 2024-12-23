@@ -19,18 +19,7 @@ class TapWikipedia(Tap):
 
     name = "tap-wikipedia"
 
-    config_jsonschema = th.PropertiesList(
-        th.Property(
-            "settings",
-            th.ObjectType(
-                th.Property("abstracts-dump-url", th.StringType),
-                th.Property("cache-directory-path", th.StringType),
-                th.Property("clean-wikipedia-title", th.BooleanType),
-                th.Property("enrichments", th.ArrayType(th.StringType)),
-                th.Property("subset-specifications", th.ArrayType(th.StringType)),
-            ),
-        ),
-    ).to_dict()
+    config_json_schema = Config.model_json_schema()
 
     def get_config(self) -> Config:
         """Return the contents of Tap configuration
@@ -39,7 +28,7 @@ class TapWikipedia(Tap):
             A Config object that contains configuration values for tap-wikipedia
         """
 
-        return Config(**self.config.get("settings", {}))
+        return Config(**self.config)
 
     def discover_streams(self) -> list[WikipediaStream]:
         """Return a list of discovered streams.

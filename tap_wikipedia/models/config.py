@@ -2,12 +2,12 @@ from pathlib import Path
 from typing import Annotated
 
 from appdirs import user_cache_dir
-from pydantic import BaseModel, Field, field_validator
-
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings
 from tap_wikipedia.models.types import EnrichmentType, SubsetSpecification
 
 
-class Config(BaseModel):
+class Config(BaseSettings):
     """A Pydantic Model to hold configuration values of tap-wikipedia."""
 
     abstracts_dump_url: Annotated[
@@ -22,7 +22,7 @@ class Config(BaseModel):
         Path,
         Field(
             default=Path(user_cache_dir("abstracts", "tap-wikipedia")),
-            validation_alias="cache_directory_path",
+            validation_alias="cache-directory-path",
         ),
     ]
     enrichments: tuple[EnrichmentType, ...] | None = None
