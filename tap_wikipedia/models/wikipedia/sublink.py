@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from tap_wikipedia.models.types import SublinkStringType
+from tap_wikipedia.models.types import StrippedString as SublinkStringType
 
 
 class Sublink(BaseModel):

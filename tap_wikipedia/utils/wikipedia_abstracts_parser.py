@@ -35,7 +35,11 @@ class WikipediaAbstractsParser(sax.ContentHandler):
     def startElement(self, tag: str, attributes: Any) -> None:  # noqa: ARG002, ANN401
         self.currentData = tag
         if tag == "doc":
-            self.abstractInfo = wikipedia.AbstractInfo(title="", url="", abstract="")
+            self.abstractInfo = wikipedia.AbstractInfo(
+                title="",
+                url="",
+                abstract="",
+            )
             self.sublinks = []
 
     # Call when an elements ends

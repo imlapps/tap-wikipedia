@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from tap_wikipedia.models.types import ExternalLinkStringType
+from tap_wikipedia.models.types import StrippedString as ExternalLinkStringType
 
 
 class ExternalLink(BaseModel):

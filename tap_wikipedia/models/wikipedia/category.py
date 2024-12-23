@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from tap_wikipedia.models.types import CategoryStringType
+from tap_wikipedia.models.types import StrippedString as CategoryStringType
 
 
 class Category(BaseModel):

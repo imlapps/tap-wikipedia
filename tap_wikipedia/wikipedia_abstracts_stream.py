@@ -22,10 +22,10 @@ from tap_wikipedia.models import (
 )
 from tap_wikipedia.models.types import (
     EnrichmentType,
-    ImageUrl,
     SubsetSpecification,
-    Title,
-    WebPageUrl,
+    StrippedString as Title,
+    StrippedString as ImageUrl,
+    StrippedString as WebPageUrl,
 )
 from tap_wikipedia.utils import FileCache, WikipediaAbstractsParser, pipe
 from tap_wikipedia.wikipedia_stream import WikipediaStream
@@ -137,24 +137,27 @@ class WikipediaAbstractsStream(WikipediaStream):
             )
             yield record
 
-    def __get_featured_articles_urls(self) -> tuple[WebPageUrl, ...]:
+    def __get_featured_articles_urls(self) -> tuple[ImageUrl, ...]:
         """Retrieve URLs of featured Wikipedia articles."""
 
-        links = [
-            cleaned_link
-            for cleaned_link in (
-                str(link.get("href"))
-                for link in BeautifulSoup(
+        featured_articles_urls = [
+            cleaned_url
+            for cleaned_url in (
+                str(url.get("href"))
+                for url in BeautifulSoup(
                     self.__session.get(WikipediaUrl.FEATURED_ARTICLES_URL).text,
                     "html.parser",
                 ).findAll("a")
             )
-            if cleaned_link[: len(WIKI_SUBDIRECTORY)] == WIKI_SUBDIRECTORY
+            if cleaned_url[: len(WIKI_SUBDIRECTORY)] == WIKI_SUBDIRECTORY
         ]
 
-        links.sort()
+        featured_articles_urls.sort()
 
-        return tuple(WikipediaUrl.BASE_URL + link for link in links)
+        return tuple(
+            WikipediaUrl.BASE_URL + featured_article_url
+            for featured_article_url in featured_articles_urls
+        )
 
     def __get_featured_records(
         self,
@@ -162,12 +165,10 @@ class WikipediaAbstractsStream(WikipediaStream):
     ) -> Iterable[wikipedia.Record]:
         """Retrieve a list of featured Wikipedia article URLs and yield records that match the URLs."""
 
-        featured_article_urls = self.__get_featured_articles_urls()
+        featured_articles_urls = self.__get_featured_articles_urls()
 
         for record in records:
-
-            if record.abstract_info.url in featured_article_urls:
-
+            if record.abstract_info.url in featured_articles_urls:
                 yield record
 
     def __get_wikipedia_records(
@@ -232,7 +233,7 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         img_url = None
         soup = BeautifulSoup(
-            self.__session.get(wikipedia_article_url).text, "html.parser"
+            self.__session.get(str(wikipedia_article_url)).text, "html.parser"
         )
 
         file_description_element = soup.find("a", {"class": "mw-file-description"})
@@ -244,7 +245,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         if file_description_url is not None:
             minimum_image_width = 500
             img_url = self.__select_wikipedia_image_resolution(
-                str(file_description_url), minimum_image_width
+                file_description_url, minimum_image_width
             )
 
         # If no better resolution is found, use existing image url on Wikipedia page
@@ -299,7 +300,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         """
 
         base_url = "https://api.wikimedia.org/core/v1/commons/file/"
-        url = base_url + file_description_url
+        url = base_url + str(file_description_url)
 
         response = dict(
             json.loads(self.__session.get(url, headers={"User-agent": "Imlapps"}).text)

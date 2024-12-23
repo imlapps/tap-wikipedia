@@ -1,6 +1,11 @@
 from pydantic import BaseModel
 
-from tap_wikipedia.models.types import Abstract, ImageUrl, Title, WebPageUrl
+from tap_wikipedia.models.types import (
+    StrippedString as Title,
+    StrippedString as WebPageUrl,
+    StrippedString as Abstract,
+    StrippedString as ImageUrl,
+)
 
 
 class AbstractInfo(BaseModel):
