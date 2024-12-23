@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from singer_sdk import Tap
-from singer_sdk import typing as th
 
 from tap_wikipedia.models import Config
 from tap_wikipedia.wikipedia_abstracts_stream import WikipediaAbstractsStream

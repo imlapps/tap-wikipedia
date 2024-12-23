@@ -27,7 +27,7 @@ from tap_wikipedia.models.types import (
     StrippedString as ImageUrl,
     StrippedString as WebPageUrl,
 )
-from tap_wikipedia.utils import FileCache, WikipediaAbstractsParser, pipe
+from tap_wikipedia.utils import FileCache, WikipediaAbstractsParser
 from tap_wikipedia.wikipedia_stream import WikipediaStream
 
 if TYPE_CHECKING:
@@ -245,7 +245,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         if file_description_url is not None:
             minimum_image_width = 500
             img_url = self.__select_wikipedia_image_resolution(
-                file_description_url, minimum_image_width
+                str(file_description_url), minimum_image_width
             )
 
         # If no better resolution is found, use existing image url on Wikipedia page
