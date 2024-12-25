@@ -255,35 +255,39 @@ class WikipediaAbstractsStream(WikipediaStream):
 
         return img_url
 
-    def __select_wikipedia_config_callables(
+    def __select_enhancer_callables(
         self,
     ) -> tuple[Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]], ...]:
-        """Return a tuple of callables that are related to parameters in wikipedia_config."""
+        """
+        Return a tuple of callables that will be used to transform records.
 
-        pipe_callables: list[
+        Callables are selected based on values in `wikipedia_config`.
+        """
+
+        callables: list[
             Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]]
         ] = []
 
         if self.wikipedia_config.subset_specifications:
             for specification in self.wikipedia_config.subset_specifications:
                 if specification == SubsetSpecification.FEATURED:
-                    pipe_callables.extend([self.__get_featured_records])
+                    callables.extend([self.__get_featured_records])
 
         if self.wikipedia_config.enrichments:
             for enrichment in self.wikipedia_config.enrichments:
                 if enrichment == EnrichmentType.IMAGE_URL:
-                    pipe_callables.append(self.__add_image_url_to_records)
+                    callables.append(self.__add_image_url_to_records)
 
                 if enrichment == EnrichmentType.CATEGORY:
-                    pipe_callables.append(self.__add_categories_to_records)
+                    callables.append(self.__add_categories_to_records)
 
                 if enrichment == EnrichmentType.EXTERNAL_LINK:
-                    pipe_callables.append(self.__add_external_links_to_records)
+                    callables.append(self.__add_external_links_to_records)
 
         if self.wikipedia_config.clean_wikipedia_title:
-            pipe_callables.append(self.__clean_wikipedia_titles)
+            callables.append(self.__clean_wikipedia_titles)
 
-        return tuple(pipe_callables)
+        return tuple(callables)
 
     def __select_wikipedia_image_resolution(
         self, file_description: NonBlankString, minimum_image_width: int
@@ -346,7 +350,7 @@ class WikipediaAbstractsStream(WikipediaStream):
         # Apply callables to records and yield.
         for record in reduce(
             lambda x, y: y(x),
-            self.__select_wikipedia_config_callables(),
+            self.__select_enhancer_callables(),
             self.__get_wikipedia_records(cached_file_path),
         ):
             yield record.model_dump()
