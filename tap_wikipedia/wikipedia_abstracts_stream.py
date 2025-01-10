@@ -235,7 +235,7 @@ class WikipediaAbstractsStream(WikipediaStream):
             file_description = file_description_element["href"][len(WIKI_SUBDIRECTORY) :]  # type: ignore[index]
 
         # Get a better resolution of the Wikipedia image.
-        if file_description is not None and str(file_description):
+        if file_description:
             minimum_image_width = 500
             img_url = self.__select_wikipedia_image_resolution(
                 str(file_description), minimum_image_width
