@@ -12,19 +12,19 @@ class WikipediaAbstractsParser(sax.ContentHandler):
 
     def __init__(self):
         self.__records: list[wikipedia.Record] = []
-        self.__abstract_info: wikipedia.AbstractInfo | None
+        self.__abstract_info: wikipedia.AbstractInfo | None = None
         self.__char_buffer: list[str] = []
         self.__current_data: str
         self.__sublinks: list[wikipedia.Sublink]
 
     # reset character buffer and return all its contents as a string
-    def flush_char_buffer(self) -> str:
+    def __flush_char_buffer(self) -> str:
         data = "".join(self.__char_buffer)
         self.__char_buffer = []
         return data.strip()
 
     # store individual records and reset abstracts dictionary
-    def store_record(self) -> None:
+    def __store_record(self) -> None:
         if self.__abstract_info and self.__sublinks:
             self.__records.append(
                 wikipedia.Record(
@@ -49,19 +49,19 @@ class WikipediaAbstractsParser(sax.ContentHandler):
     def endElement(self, tag: str) -> None:
         if self.__abstract_info:
             if tag == "title":
-                self.__abstract_info.title = self.flush_char_buffer()
+                self.__abstract_info.title = self.__flush_char_buffer()
             elif tag == "url":
-                self.__abstract_info.url = AnyUrl(self.flush_char_buffer())
+                self.__abstract_info.url = AnyUrl(self.__flush_char_buffer())
             elif tag == "abstract":
-                self.__abstract_info.abstract = self.flush_char_buffer()
+                self.__abstract_info.abstract = self.__flush_char_buffer()
             elif tag == "anchor":
                 sublink = wikipedia.Sublink()
-                sublink.anchor = self.flush_char_buffer()
+                sublink.anchor = self.__flush_char_buffer()
                 self.__sublinks.append(sublink)
             elif tag == "link":
-                self.__sublinks[-1].link = self.flush_char_buffer()
+                self.__sublinks[-1].link = self.__flush_char_buffer()
             elif tag == "doc":
-                self.store_record()
+                self.__store_record()
 
     # store each chunk of character data within character buffer
     def characters(self, content: str) -> None:
