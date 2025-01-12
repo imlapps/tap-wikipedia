@@ -4,7 +4,7 @@ from singer_sdk import Stream
 
 
 class WikipediaStream(Stream):
-    """Stream class for wikipedia streams."""
+    """Tap stream for Wikipedia data."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)

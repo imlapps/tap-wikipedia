@@ -1,84 +1,176 @@
 from __future__ import annotations
 
+import json
+import logging
+from functools import reduce
+from typing import TYPE_CHECKING
+from xml import sax
+
+from bs4 import BeautifulSoup
+from pydantic import AnyUrl
+from requests import HTTPError
 from requests_cache import CachedSession
 
-import xml.sax as sax
-from bs4 import BeautifulSoup
-
-
-import logging
-from appdirs import user_cache_dir
-from pathlib import Path
-from typing import Tuple, Iterable, Dict
-
-import singer_sdk.typing as th
-from singer_sdk import Tap
+from tap_wikipedia.constants import (
+    WIKI_SUBDIRECTORY,
+    WIKIPEDIA_TITLE_PREFIX,
+    WikipediaUrl,
+)
+from tap_wikipedia.models import Config, wikipedia
+from tap_wikipedia.models.types import EnrichmentType, NonBlankString
+from tap_wikipedia.models.types import StrippedString as Title
+from tap_wikipedia.models.types import SubsetSpecification
+from tap_wikipedia.utils import FileCache, WikipediaAbstractsParser
 from tap_wikipedia.wikipedia_stream import WikipediaStream
 
-from tap_wikipedia.utils.file_cache import FileCache
-from tap_wikipedia.utils.wikipedia_abstracts_parser import (
-    WikipediaAbstractsParser,
-)  # noqa: E501
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
+    from pathlib import Path
+
+    from singer_sdk import Tap
 
 
 class WikipediaAbstractsStream(WikipediaStream):
-    """A concrete implementation of the Wikipedia Stream class."""
+    """
+    A concrete implementation of Wikipedia Stream.
 
-    def __init__(self, tap: Tap, wikipedia_config: Dict):
+    Extract an abstracts dump from the Wikimedia Foundation project (`dumps.wikimedia.org`),
+
+    parse the abstracts, and yield them as records.
+    """
+
+    def __init__(self, tap: Tap, wikipedia_config: Config):
         super().__init__(
-            tap=tap,
-            name="abstracts",
-            schema=th.PropertiesList(
-                th.Property(
-                    "abstract_info",
-                    th.ObjectType(
-                        th.Property("title", th.StringType),
-                        th.Property("abstract", th.StringType),
-                        th.Property("url", th.StringType),
-                    ),
-                ),
-                th.Property(
-                    "sublinks",
-                    th.ArrayType(
-                        th.ObjectType(
-                            th.Property("anchor", th.StringType),
-                            th.Property("link", th.StringType),
-                        )
-                    ),
-                ),
-            ).to_dict(),
+            tap=tap, name="abstracts", schema=wikipedia.Record.model_json_schema()
         )
         self.wikipedia_config = wikipedia_config
+        self.__session = CachedSession("tap_wikipedia_cache")
         self.__logger = logging.getLogger(__name__)
 
-    def __get_featured_articles(self) -> Tuple[str, ...]:
-        """Retrieve URLs of Featured Wikipedia Articles"""
+    def __add_categories_to_records(
+        self,
+        records: Iterable[wikipedia.Record],
+    ) -> Iterable[wikipedia.Record]:
+        """Enrich Wikipedia records with their categories and yield the records."""
 
-        session = CachedSession("featured_articles_cache", expire_after=3600)
+        for record in records:
+            try:
+                categories = self.__get_wikipedia_record_categories(
+                    record.abstract_info.url
+                )
+            except HTTPError:
+                self.__logger.warning(
+                    f"Error while getting the categories of Wikipedia article: {record.abstract_info.title}",
+                    exc_info=True,
+                )
+                continue
 
-        url = "https://en.wikipedia.org/wiki/Wikipedia:Featured_articles"
-        links = []
+            record.categories = categories
+            yield record
 
-        response = session.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
+    def __add_external_links_to_records(
+        self,
+        records: Iterable[wikipedia.Record],
+    ) -> Iterable[wikipedia.Record]:
+        """Enrich Wikipedia records with their external links and yield the records."""
 
-        for link in soup.find_all("a"):
-            current_link = str(link.get("href"))
-            if current_link[:5] == "/wiki":
-                links.append(current_link)
+        for record in records:
+            try:
+                external_links = self.__get_wikipedia_record_external_links(
+                    record.abstract_info.title
+                )
+            except HTTPError:
+                self.__logger.warning(
+                    f"Error while getting the external links of Wikipedia article: {record.abstract_info.title}",
+                    exc_info=True,
+                )
+                continue
 
-        links.sort()
-        featured_urls = tuple(
-            "https://en.wikipedia.org" + link for link in links  # noqa: E501
+            record.external_links = external_links
+            yield record
+
+    def __add_image_url_to_records(
+        self,
+        records: Iterable[wikipedia.Record],
+    ) -> Iterable[wikipedia.Record]:
+        """Enrich Wikipedia records with their image URLs and yield the records."""
+
+        for record in records:
+            try:
+                img_url = self.__get_wikipedia_record_image_url(
+                    record.abstract_info.url
+                )
+
+            except HTTPError:
+                self.__logger.warning(
+                    f"Error while getting the image URL of Wikipedia article: {record.abstract_info.title}",
+                    exc_info=True,
+                )
+                continue
+
+            record.abstract_info.imageUrl = img_url
+            yield record
+
+    def __clean_wikipedia_title(self, wikipedia_title: Title) -> Title:
+        """Remove `WIKIPEDIA_TITLE_PREFIX` from a Wikipedia title."""
+
+        if wikipedia_title.startswith(WIKIPEDIA_TITLE_PREFIX):
+            return wikipedia_title[len(WIKIPEDIA_TITLE_PREFIX) :].strip()
+
+        return wikipedia_title
+
+    def __clean_wikipedia_titles(
+        self, records: Iterable[wikipedia.Record]
+    ) -> Iterable[wikipedia.Record]:
+        """Remove unwanted text from the titles of Wikipedia articles."""
+
+        for record in records:
+            record.abstract_info.title = self.__clean_wikipedia_title(
+                record.abstract_info.title
+            )
+            yield record
+
+    def __get_featured_articles_urls(self) -> tuple[AnyUrl, ...]:
+        """Retrieve URLs of featured Wikipedia articles."""
+
+        featured_articles_urls = [
+            cleaned_url
+            for cleaned_url in (
+                str(url.get("href"))
+                for url in BeautifulSoup(
+                    self.__session.get(WikipediaUrl.FEATURED_ARTICLES_URL).text,
+                    "html.parser",
+                ).findAll("a")
+            )
+            if cleaned_url[: len(WIKI_SUBDIRECTORY)] == WIKI_SUBDIRECTORY
+        ]
+
+        featured_articles_urls.sort()
+
+        return tuple(
+            AnyUrl(WikipediaUrl.BASE_URL + featured_article_url)
+            for featured_article_url in featured_articles_urls
         )
 
-        return featured_urls
+    def __get_featured_records(
+        self,
+        records: Iterable[wikipedia.Record],
+    ) -> Iterable[wikipedia.Record]:
+        """Retrieve a list of featured Wikipedia article URLs and yield records that match the URLs."""
 
-    def __get_wikipedia_records(self, cached_file_path) -> Tuple[Dict, ...]:
-        """Retrieve list of Wikipedia Records"""
+        featured_articles_urls = self.__get_featured_articles_urls()
+
+        for record in records:
+            if record.abstract_info.url in featured_articles_urls:
+                yield record
+
+    def __get_wikipedia_records(
+        self, cached_file_path: Path
+    ) -> Iterable[wikipedia.Record]:
+        """Parse Wikipedia abstracts and return a tuple of Wikipedia records."""
 
         # Setup parser
-        parser = sax.make_parser()
+        parser = sax.make_parser()  # noqa: S317
         parser.setFeature(sax.handler.feature_namespaces, 0)
 
         # Instantiate SAX Handler and run parser
@@ -86,46 +178,179 @@ class WikipediaAbstractsStream(WikipediaStream):
         parser.setContentHandler(handler)
         parser.parse(cached_file_path)
 
-        # Return tuple of records
         return handler.records
 
-    def get_records(self, context: Dict | None) -> Iterable[Dict]:
-        """Generate Stream of Wikipedia Records"""
+    def __get_wikipedia_record_categories(
+        self, wikipedia_article_url: AnyUrl
+    ) -> tuple[wikipedia.Category, ...]:
+        """Return a tuple of a Wikipedia article's categories."""
 
-        # Set default config values
-        default_url = "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz"  # noqa: E501
-        default_cache_dir = user_cache_dir("abstracts", "tap-wikipedia")
-
-        # Get config values
-        url = self.wikipedia_config.get("abstracts-dump-url", default_url)
-        cache_dir = Path(
-            self.wikipedia_config.get("cache-path", default_cache_dir)  # noqa: E501
+        return tuple(
+            wikipedia.Category(
+                text=category_item.get("href"), link=category_item.text.strip()
+            )
+            for category_item in BeautifulSoup(  # type: ignore[union-attr]
+                self.__session.get(str(wikipedia_article_url)).text, "html.parser"
+            )
+            .find("a", {"title": "Help:Category"})
+            .find_next_sibling()
+            .findAll("a")
         )
-        subset_specification = self.wikipedia_config.get("subset-spec", [])
 
-        # Get cache directory
-        abstractsCache = FileCache(cache_dir_path=cache_dir)
+    def __get_wikipedia_record_external_links(
+        self, wikipedia_title: Title
+    ) -> tuple[wikipedia.ExternalLink, ...]:
+        """Return a tuple of external Wikipedia article links on a Wikipedia page."""
+
+        return tuple(
+            wikipedia.ExternalLink(
+                title=wikipedia_json["*"].title(),
+                link=WikipediaUrl.WIKI_SUBDIRECTORY_URL
+                + wikipedia_json["*"].replace(" ", "_"),
+            )
+            for wikipedia_json in self.__session.get(
+                url=WikipediaUrl.MEDIA_WIKI_API,
+                params={
+                    "action": "parse",
+                    "page": self.__clean_wikipedia_title(wikipedia_title),
+                    "format": "json",
+                },
+            ).json()["parse"]["links"]
+            if wikipedia_json["ns"] == 0
+        )
+
+    def __get_wikipedia_record_image_url(
+        self, wikipedia_article_url: AnyUrl
+    ) -> AnyUrl | None:
+        """Retrieve the ImageURL of a Wikipedia record."""
+
+        img_url = None
+        soup = BeautifulSoup(
+            self.__session.get(str(wikipedia_article_url)).text, "html.parser"
+        )
+
+        file_description_element = soup.find("a", {"class": "mw-file-description"})
+
+        if file_description_element:
+            file_description = file_description_element["href"][len(WIKI_SUBDIRECTORY) :]  # type: ignore[index]
+
+        # Get a better resolution of the Wikipedia image.
+        if file_description:
+            minimum_image_width = 500
+            img_url = self.__select_wikipedia_image_resolution(
+                str(file_description), minimum_image_width
+            )
+
+        # If no better resolution is found, use existing image url on Wikipedia page.
+        if img_url is None:
+            image_url = str(
+                soup.find(  # type: ignore[union-attr, assignment]
+                    "a", {"class": "mw-file-description"}
+                )
+                .findChild()
+                .get("src", None)
+            )
+
+            img_url = AnyUrl("https://" + image_url)
+
+        return img_url
+
+    def __select_enhancer_callables(
+        self,
+    ) -> tuple[Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]], ...]:
+        """
+        Return a tuple of callables that will be used to transform records.
+
+        Callables are selected based on values in `wikipedia_config`.
+        """
+
+        callables: list[
+            Callable[[Iterable[wikipedia.Record]], Iterable[wikipedia.Record]]
+        ] = []
+
+        if self.wikipedia_config.subset_specifications:
+            for specification in self.wikipedia_config.subset_specifications:
+                if specification == SubsetSpecification.FEATURED:
+                    callables.extend([self.__get_featured_records])
+
+        if self.wikipedia_config.enrichments:
+            for enrichment in self.wikipedia_config.enrichments:
+                if enrichment == EnrichmentType.IMAGE_URL:
+                    callables.append(self.__add_image_url_to_records)
+
+                if enrichment == EnrichmentType.CATEGORY:
+                    callables.append(self.__add_categories_to_records)
+
+                if enrichment == EnrichmentType.EXTERNAL_LINK:
+                    callables.append(self.__add_external_links_to_records)
+
+        if self.wikipedia_config.clean_wikipedia_title:
+            callables.append(self.__clean_wikipedia_titles)
+
+        return tuple(callables)
+
+    def __select_wikipedia_image_resolution(
+        self, file_description: NonBlankString, minimum_image_width: int
+    ) -> AnyUrl | None:
+        """
+        Retrieve a high-quality image from Wikimedia Commons API.
+
+        `minimum_image_width` is used as a guide to select the best image from the API.
+        """
+
+        base_url = "https://api.wikimedia.org/core/v1/commons/file/"
+        url = base_url + file_description
+
+        response = dict(
+            json.loads(self.__session.get(url, headers={"User-agent": "Imlapps"}).text)
+        )
+
+        display_title = response.get("title", "")
+        selected_image_url = None
+
         try:
-            cached_file_path = abstractsCache.get_file(url)
-        except Exception:
+            # Select an image in increasing order of preference.
+            if ("preferred" in response) and (
+                response["preferred"].get("width", 0) >= minimum_image_width
+            ):
+                selected_image_url = AnyUrl(response["preferred"].get("url", None))
+            elif "original" in response:
+                selected_image_url = AnyUrl(response["original"].get("url", None))
+            elif "thumbnail" in response:
+                selected_image_url = AnyUrl(response["thumbnail"].get("url", None))
+
+            # If no image is selected, settle for an image with a width less than the minimum_image_width.
+            if (
+                selected_image_url is None
+                and ("preferred" in response)
+                and response["preferred"].get("url") != ""
+            ):
+                selected_image_url = AnyUrl(response["preferred"].get("url"))
+
+        except HTTPError:
             self.__logger.warning(
-                "error downloading Wikipedia dump", exc_info=True
-            )  # noqa: E501
-            return 1
+                f"Error while selecting an image URL for {display_title} from Wikimedia Commons.",
+                exc_info=True,
+            )
+        return selected_image_url
 
-        # get Wikipedia records
-        records = self.__get_wikipedia_records(cached_file_path)
+    def get_records(self, context: dict | None) -> Iterable[dict]:  # noqa: ARG002
+        """Generate a stream of Wikipedia records."""
 
-        # returns a list of featured Wikipedia Article records
-        def get_featured_records() -> Iterable[Dict]:
-            featured_urls = self.__get_featured_articles()
+        try:
+            cached_file_path = FileCache(
+                cache_dir_path=self.wikipedia_config.cache_directory_path
+            ).get_file(self.wikipedia_config.abstracts_dump_url)
+        except HTTPError:
+            self.__logger.warning(
+                f"Error while downloading Wikipedia dump from {self.wikipedia_config.abstracts_dump_url}",
+                exc_info=True,
+            )
 
-            for record in records:
-                if record["abstract_info"]["url"] in featured_urls:
-                    yield record
-
-        # Filter out featured Wikipedia Article records
-        if "featured" in subset_specification:
-            yield from get_featured_records()
-        else:
-            yield from records
+        # Apply callables to records and yield.
+        for record in reduce(
+            lambda x, y: y(x),
+            self.__select_enhancer_callables(),
+            self.__get_wikipedia_records(cached_file_path),
+        ):
+            yield record.model_dump()

@@ -1,13 +1,12 @@
+import gzip
 import json
 import logging
 import mimetypes
-
 import os
-import gzip
 from pathlib import Path
 from ssl import SSLContext
 from time import sleep
-from typing import Optional, Dict, Any
+from typing import Any
 from urllib.request import urlopen
 
 from pathvalidate import sanitize_filename
@@ -19,8 +18,8 @@ class FileCache:
         *,
         # atomic_download: bool = False,
         cache_dir_path: Path,
-        sleep_s_after_download: Optional[float] = None,
-        ssl_context: Optional[SSLContext] = None,
+        sleep_s_after_download: float | None = None,
+        ssl_context: SSLContext | None = None,
     ):
         """
         :param cache_dir_path: directory where files from URLs can be cached
@@ -33,7 +32,7 @@ class FileCache:
         self.__ssl_context = ssl_context
 
     def __cached_file_extension(
-        self, *, file_url: str, file_mime_type: Optional[str]
+        self, *, file_url: str, file_mime_type: str | None
     ) -> str:
         if file_mime_type is not None:
             cached_file_extension = mimetypes.guess_extension(
@@ -53,7 +52,7 @@ class FileCache:
             self.__logger.debug(
                 "guessed MIME type %s from file URL %s",
                 guessed_mime_type,
-                file_url,  # noqa: E501
+                file_url,
             )
             cached_file_extension = mimetypes.guess_extension(
                 guessed_mime_type, strict=False
@@ -75,8 +74,8 @@ class FileCache:
         self,
         file_url: str,
         *,
-        file_extension: Optional[str] = None,
-        force_download=False,
+        file_extension: str | None = None,
+        force_download: bool = False,
     ) -> Path:
         """
         Get file from the cache, downloading if necessary.
@@ -97,17 +96,17 @@ class FileCache:
                 cached_file_path = file_cache_dir_path / file_name
                 if not cached_file_path.is_file():
                     continue
-                file_base_name = os.path.splitext(file_name)[0]
+                file_base_name = Path(file_name).stem
                 if file_base_name == "abstracts":
                     # Cache hit
                     self.__logger.debug(
-                        "cached file %s exists for URL %s and force_download not specified, using cached data",  # noqa: E501
+                        "cached file %s exists for URL %s and force_download not specified, using cached data",
                         cached_file_path,
                         file_url,
                     )
                     return cached_file_path
 
-        def get_cached_file_path(headers_dict: Dict[str, Any]) -> Path:
+        def get_cached_file_path(headers_dict: dict[str, Any]) -> Path:
             if file_extension is not None:
                 return file_cache_dir_path / (
                     "abstracts"
@@ -130,12 +129,11 @@ class FileCache:
 
         # Force download or cache miss
         self.__logger.debug("downloading %s", file_url)
-        with urlopen(
+        with urlopen(  # noqa: S310
             str(file_url), context=self.__ssl_context
-        ) as open_file_url:  # noqa: E501
-            open_file_headers_dict = {
-                key: value for key, value in open_file_url.headers.items()
-            }
+        ) as open_file_url:
+            open_file_headers_dict = dict(open_file_url.headers.items())
+
             cached_file_path = get_cached_file_path(open_file_headers_dict)
             cached_file_path.unlink(missing_ok=True)
             file_cache_dir_path.mkdir(exist_ok=True, parents=True)
@@ -143,16 +141,14 @@ class FileCache:
             with gzip.GzipFile(fileobj=open_file_url) as uncompressed_file:
                 file_content = uncompressed_file.read()
 
-            with open(cached_file_path, "wb") as cached_file:
+            with Path.open(cached_file_path, "wb") as cached_file:
                 cached_file.write(file_content)
-                self.__logger.debug(
-                    "downloaded %s to %s", file_url, cached_file_path
-                )  # noqa: E501
+                self.__logger.debug("downloaded %s to %s", file_url, cached_file_path)
 
         headers_json_file_path = file_cache_dir_path / "headers.json"
-        with open(
+        with Path.open(
             headers_json_file_path, "w+", encoding="utf-8"
-        ) as headers_json_file:  # noqa: E501
+        ) as headers_json_file:
             json.dump(open_file_headers_dict, headers_json_file)
             self.__logger.debug(
                 "wrote %s headers to %s", file_url, headers_json_file_path
@@ -173,8 +169,8 @@ class FileCache:
         *,
         file_data: bytes,
         file_url: str,
-        file_mime_type: Optional[str] = None,
-        file_extension: Optional[str] = None,
+        file_mime_type: str | None = None,
+        file_extension: str | None = None,
     ) -> Path:
         file_cache_dir_path = self.__file_cache_dir_path(file_url=file_url)
         if file_extension is None:
@@ -183,6 +179,6 @@ class FileCache:
             )
         cached_file_path = file_cache_dir_path / ("file" + file_extension)
         file_cache_dir_path.mkdir(exist_ok=True)
-        with open(cached_file_path, "w+b") as cached_file:
+        with Path.open(cached_file_path, "w+b") as cached_file:
             cached_file.write(file_data)
         return cached_file_path
