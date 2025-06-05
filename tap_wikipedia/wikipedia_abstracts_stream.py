@@ -17,9 +17,13 @@ from tap_wikipedia.constants import (
     WikipediaUrl,
 )
 from tap_wikipedia.models import Config, wikipedia
-from tap_wikipedia.models.types import EnrichmentType, NonBlankString
-from tap_wikipedia.models.types import StrippedString as Title
-from tap_wikipedia.models.types import SubsetSpecification
+from tap_wikipedia.models.types import (
+    EnrichmentType,
+    SubsetSpecification,
+    NonBlankString,
+    StrippedString as FeaturedArticleCategory,
+    StrippedString as Title,
+)
 from tap_wikipedia.utils import FileCache, WikipediaAbstractsParser
 from tap_wikipedia.wikipedia_stream import WikipediaStream
 
@@ -66,6 +70,28 @@ class WikipediaAbstractsStream(WikipediaStream):
                 continue
 
             record.categories = categories
+            yield record
+
+    def __add_featured_article_categories_to_records(
+        self, records: Iterable[wikipedia.Record]
+    ) -> Iterable[wikipedia.Record]:
+        """Enrich Wikipedia records with their featured article categories and yield the records."""
+
+        for record in records:
+            try:
+                featured_article_category = (
+                    self.__get_wikipedia_record_featured_article_category(
+                        record.abstract_info.url
+                    )
+                )
+            except (HTTPError, ValueError):
+                self.__logger.warning(
+                    f"Error while getting the featured article category of Wikipedia article: {record.abstract_info.title}",
+                    exc_info=True,
+                )
+                continue
+
+            record.featured_article_category = featured_article_category
             yield record
 
     def __add_external_links_to_records(
@@ -197,6 +223,51 @@ class WikipediaAbstractsStream(WikipediaStream):
             .findAll("a")
         )
 
+    def __get_wikipedia_record_featured_article_category(
+        self, wikipedia_article_url: AnyUrl
+    ) -> FeaturedArticleCategory:
+        """
+        Retrieve the featured article category of a Wikipedia record.
+
+        A featured article category is a category of a featured Wikipedia article.
+
+        Categories are obtained from `https://en.wikipedia.org/wiki/Wikipedia:Featured_articles`.
+        """
+
+        try:
+            tag = (
+                BeautifulSoup(  # type: ignore[union-attr]
+                    self.__session.get(WikipediaUrl.FEATURED_ARTICLES_URL).text,
+                    "html.parser",
+                )
+                .find(
+                    "a",
+                    {"href": str(wikipedia_article_url)[len(WikipediaUrl.BASE_URL) :]},
+                )
+                .find_parent("p")
+                .find_previous_sibling(
+                    "div",
+                    {
+                        "class": "mw-heading mw-heading2 ext-discussiontools-init-section"
+                    },
+                )
+            )
+
+            if tag:
+                self.__logger.warning(
+                    f"Current tag h2 element for {wikipedia_article_url}: {tag.find('h2')}"
+                )
+                return str(tag.find("h2")["id"])  # type: ignore[index]
+
+            return ""
+
+        except ValueError:
+            self.__logger.warning(
+                f"Error while getting the featured article category of article with URL: {wikipedia_article_url!s}",
+                exc_info=True,
+            )
+            raise
+
     def __get_wikipedia_record_external_links(
         self, wikipedia_title: Title
     ) -> tuple[wikipedia.ExternalLink, ...]:
@@ -272,6 +343,13 @@ class WikipediaAbstractsStream(WikipediaStream):
             for specification in self.wikipedia_config.subset_specifications:
                 if specification == SubsetSpecification.FEATURED:
                     callables.extend([self.__get_featured_records])
+
+                if (
+                    self.wikipedia_config.enrichments
+                    and EnrichmentType.FEATURED_ARTICLE_CATEGORY
+                    in self.wikipedia_config.enrichments
+                ):
+                    callables.append(self.__add_featured_article_categories_to_records)
 
         if self.wikipedia_config.enrichments:
             for enrichment in self.wikipedia_config.enrichments:
