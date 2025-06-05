@@ -7,3 +7,4 @@ class EnrichmentType(Enum):
     IMAGE_URL = "ImageURL"
     CATEGORY = "Category"
     EXTERNAL_LINK = "ExternalLink"
+    FEATURED_ARTICLE_CATEGORY = "FeaturedArticleCategory"

@@ -1,5 +1,11 @@
 from pydantic import BaseModel
-
+from tap_wikipedia.models.types import NonBlankString as FeaturedArticleCategory
+from tap_wikipedia.models.wikipedia import (
+    AbstractInfo,
+    Category,
+    ExternalLink,
+    Sublink,
+)
 from tap_wikipedia.models.wikipedia import AbstractInfo, Category, ExternalLink, Sublink
 
 
@@ -10,3 +16,4 @@ class Record(BaseModel):
     categories: tuple[Category, ...] | None = None
     external_links: tuple[ExternalLink, ...] | None = None
     sublinks: tuple[Sublink, ...] | None = None
+    featured_article_category: FeaturedArticleCategory | None = None
